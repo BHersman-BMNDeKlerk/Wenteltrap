@@ -11,6 +11,10 @@ lettertypen van een CDN, dus er is een internetverbinding nodig.
 - **Parameters** (links): straal en binnenstraal van de treden, looplijn, verdiepingshoogte, aantal optreden,
   draaihoek, starthoek, draairichting, tredendikte, boomhoogtes en leuninghoogte.
 - **Onderdelen**: stootborden, vloer boven, binnen- en buitenleuning en looplijn.
+- **Zware tredendragers**: 0 tot 4 treden krijgen een koker 100x100x5 onder de tredendrager, van boom tot
+  boom. De knop "Gunstigste plekken zoeken" kiest de treden waar dat de steunpunten van de buitenboom
+  het meest ontlast; de tredenummers zijn daarna los aan te passen. Elke tredendrager heeft links en
+  rechts een voetplaatje tegen de boom.
 - **Kolom KK250/10**: positie ten opzichte van het hart van de trap en de dikte van de vloeropbouw. Boven de
   kolom zitten een plaat van 16 mm, een liggende HEA160 langs de vloerrand en een hoeklijn van 12 mm; de
   bovenkant van de kolom volgt uit de verdiepingshoogte.
@@ -27,6 +31,7 @@ lettertypen van een CDN, dus er is een internetverbinding nodig.
 - Standaard: treden R = 1500 mm, binnenstraal 400 mm, looplijn 400 mm uit de binnenzijde,
   verdiepingshoogte 3750 mm, 18 optreden, leuninghoogte 1000 mm, vloeropbouw 330 mm
   (bovenkant kolom op 3240 mm).
+- Standaard vier zware tredendragers, bij trede 1, 2, 13 en 18.
 
 ## Controle
 

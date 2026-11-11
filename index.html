@@ -70,11 +70,13 @@ body {
   letter-spacing: 0.01em; margin: 0; text-wrap: balance;
 }
 .title p { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
-.title button {
+.title button, .ghost {
   margin-top: 12px; border: 1px solid var(--line); border-radius: 4px; background: var(--field); color: var(--ink);
   font: 500 13px var(--font-body); padding: 6px 12px; cursor: pointer;
 }
-.title button:hover { border-color: var(--accent); }
+.title button:hover, .ghost:hover { border-color: var(--accent); }
+.ghost { margin-top: 0; justify-self: start; align-self: flex-start; }
+.ghost:disabled { opacity: 0.55; cursor: default; }
 
 .group { display: flex; flex-direction: column; gap: 12px; }
 .group > h2 {
@@ -286,6 +288,23 @@ body {
       <p class="note">Vast volgens de omschrijving: handregel buis Ø42,4, balusters plat 60×12, bomen van plaat 10 mm, tredendragers van plaat 3 mm, eiken treden met één antislipstrook.</p>
     </section>
 
+    <section class="group" id="g-zwaar">
+      <h2>Zware tredendragers</h2>
+      <p class="note">Een zware drager is de gewone tredendrager met een koker 100×100×5 eronder, van boom tot boom. Elke drager heeft links en rechts een voetplaatje tegen de boom.</p>
+      <div class="optrow">
+        <span id="lbl-heavyN">Aantal zware dragers</span>
+        <div class="seg" role="group" aria-labelledby="lbl-heavyN" data-key="heavyN">
+          <button type="button" id="heavyN-0" data-val="0">0</button>
+          <button type="button" id="heavyN-1" data-val="1">1</button>
+          <button type="button" id="heavyN-2" data-val="2">2</button>
+          <button type="button" id="heavyN-3" data-val="3">3</button>
+          <button type="button" id="heavyN-4" data-val="4">4</button>
+        </div>
+      </div>
+      <button type="button" id="btn-heavy" class="ghost">Gunstigste plekken zoeken</button>
+      <p class="note" id="heavy-status" role="status"></p>
+    </section>
+
     <section class="group" id="g-kolom">
       <h2>Kolom KK250/10</h2>
       <div class="checks-list one">
@@ -416,9 +435,17 @@ const P = {
   risers: false, landing: true, railOut: true, railIn: true, showLoop: true,
   column: true, ties: true, colX: 171, colY: 158, floorT: 330,
   tieN: 3, tie1: 760, tie2: 1690, tie3: 2620, tie4: 3000,
+  heavyN: 4, heavy1: 1, heavy2: 2, heavy3: 13, heavy4: 18, // gunstigste plekken voor de standaardtrap
   use: 'vlucht',
 };
 const DEFAULTS = { ...P };
+
+// Treden met een zware tredendrager: de eerste heavyN ingevulde tredenummers
+function heavySet(d) {
+  const set = new Set();
+  for (let i = 1; i <= P.heavyN; i++) set.add(Math.min(d.nT, Math.max(1, Math.round(P['heavy' + i]))));
+  return set;
+}
 let view = '3d', tab = 'dims';
 
 // Grenswaarden uit Bbl tabel 4.26 (nieuwbouw), in mm. Breedte, afstand van de klimlijn tot de zijkant
@@ -445,6 +472,10 @@ const FIELDS = [
   { k: 'colX',  g: 'g-kolom',  label: 'Hart kolom tot hart trap, langs vloerrand', unit: 'mm', min: 125, max: 1000, step: 1 },
   { k: 'colY',  g: 'g-kolom',  label: 'Hart kolom tot hart trap, haaks op vloerrand', unit: 'mm', min: 125, max: 1000, step: 1 },
   { k: 'floorT', g: 'g-kolom', label: 'Dikte vloeropbouw',          unit: 'mm', min: 100, max: 600,  step: 10 },
+  { k: 'heavy1', g: 'g-zwaar', label: 'Zware drager 1 bij trede',     unit: 'nr', min: 1,   max: 18,   step: 1 },
+  { k: 'heavy2', g: 'g-zwaar', label: 'Zware drager 2 bij trede',     unit: 'nr', min: 1,   max: 18,   step: 1 },
+  { k: 'heavy3', g: 'g-zwaar', label: 'Zware drager 3 bij trede',     unit: 'nr', min: 1,   max: 18,   step: 1 },
+  { k: 'heavy4', g: 'g-zwaar', label: 'Zware drager 4 bij trede',     unit: 'nr', min: 1,   max: 18,   step: 1 },
   { k: 'tie1',  g: 'g-koppel', label: 'Koppeling 1, hoogte hart',   unit: 'mm', min: 100, max: 3180, step: 10 },
   { k: 'tie2',  g: 'g-koppel', label: 'Koppeling 2, hoogte hart',   unit: 'mm', min: 100, max: 3180, step: 10 },
   { k: 'tie3',  g: 'g-koppel', label: 'Koppeling 3, hoogte hart',   unit: 'mm', min: 100, max: 3180, step: 10 },
@@ -503,6 +534,7 @@ function buildFields() {
       P[f.k] = v; syncInputs(); schedule();
     });
   }
+  $('g-zwaar').append($('btn-heavy'), $('heavy-status'));
   document.querySelectorAll('.seg').forEach(seg => {
     seg.addEventListener('click', e => {
       const b = e.target.closest('button'); if (!b) return;
@@ -513,8 +545,9 @@ function buildFields() {
         $('tab-dims').hidden = tab !== 'dims'; $('tab-loads').hidden = tab !== 'loads';
         syncInputs(); return;
       }
-      P[key] = key === 'dir' || key === 'tieN' ? +b.dataset.val : b.dataset.val;
+      P[key] = key === 'dir' || key === 'tieN' || key === 'heavyN' ? +b.dataset.val : b.dataset.val;
       if (key === 'tieN') spreadTies();
+      if (key === 'heavyN' && P.heavyN > 0 && P.core !== 'spil') { syncInputs(); update(); findHeavy(); return; }
       syncInputs(); schedule();
     });
   });
@@ -812,6 +845,7 @@ function buildModel(d) {
 
   // Treden: eiken op een tredendrager van 3 mm plaat met gezette voor- en achterrand
   const stripIn = Math.max(d.rIn + 40, 70 / d.dA); // antislip begint waar de trede breed genoeg is
+  const heavy = heavySet(d);
   for (let i = 1; i <= d.nT; i++) {
     const f0 = (i - 1) * d.dA, f1 = i * d.dA, top = i * d.h, under = top - d.t;
     part('IfcMember', 'Trede ' + nr(i), 'USERDEFINED', 'Trede');
@@ -820,6 +854,12 @@ function buildModel(d) {
     add(B.sector(d.rIn, d.rOut, f0, f1, () => under - CARRIER, () => under), mats.steel);
     slat(f0, d.rIn, d.rOut, under - 28, under - CARRIER, 0, CARRIER, mats.steel);
     if (i < d.nT) slat(f1, d.rIn, d.rOut, under - 28, under - CARRIER, -CARRIER, 0, mats.steel);
+    // Voetplaatje links en rechts tegen de bomen. Een zware drager heeft een koker 100x100 eronder en
+    // grotere plaatjes.
+    const fm = (f0 + f1) / 2, big = heavy.has(i), pw = big ? 65 : 40, ph = big ? 120 : 60, pt = big ? 10 : 8;
+    slat(fm, d.rIn, d.rIn + pt, under - CARRIER - ph, under - CARRIER, -pw, pw, mats.steel);
+    slat(fm, d.rOut - pt, d.rOut, under - CARRIER - ph, under - CARRIER, -pw, pw, mats.steel);
+    if (big) slat(fm, d.rIn + pt, d.rOut - pt, under - CARRIER - 100, under - CARRIER, -50, 50, mats.steel);
     // Antislip: één strook zwart rubber achter de neus
     part('IfcCovering', 'Antislip ' + nr(i), 'USERDEFINED', 'Antislipstrook');
     if (stripIn < d.rOut - 40) slat(f0, stripIn, d.rOut - 40, top - 2, top + 2, 30, 50, mats.rubber);
@@ -1002,10 +1042,27 @@ function limitTies() {
   }
 }
 
+// Een zware drager hoort bij een bestaande trede; alleen de gekozen dragers zijn zichtbaar.
+function limitHeavy() {
+  const nT = derive().nT;
+  for (let i = 1; i <= 4; i++) {
+    const k = 'heavy' + i, f = FIELDS.find(x => x.k === k), num = $('p-' + k), rng = $('r-' + k);
+    f.max = nT; num.max = rng.max = nT;
+    if (P[k] > nT) P[k] = nT;
+    rng.value = P[k];
+    if (document.activeElement !== num) num.value = P[k];
+    $('row-' + k).hidden = i > P.heavyN;
+  }
+  $('btn-heavy').hidden = P.heavyN === 0 || P.core === 'spil';
+  // De melding van de zoekfunctie geldt alleen zolang de gevonden plekken nog zijn ingevuld
+  if (!$('btn-heavy').disabled && heavyFound !== heavyKey()) $('heavy-status').textContent = '';
+}
+
 function update() {
   queued = false;
   limitLoop();
   limitTies();
+  limitHeavy();
   const d = derive();
   $('col-note').textContent = `Bovenkant kolom op ${nl(d.colTop)} mm. Daarboven: plaat ${PLATE}, HEA160 liggend (${HEA.h}), hoeklijn ${HOEK} en de vloeropbouw.`;
   renderChecks(d);
@@ -1114,9 +1171,10 @@ function frameSolve(nodes, els, fixed, loads) {
 
 // Bouwt het rekenmodel van de trap en geeft de reacties op de vloeren en de koppelingen.
 // q = veranderlijke belasting in kN/m2. Alle uitkomsten zijn karakteristiek, zonder belastingfactoren.
-function computeLoads(q) {
+function computeLoads(q, heavyTreads) {
   const d = derive();
   if (d.spil) return null;
+  const heavy = heavyTreads ? new Set(heavyTreads) : heavySet(d);
   const B = makeBuilder(d);
   const nodes = [], els = [], fixed = new Set(), FG = [], FQ = [];
   const raw = (x, y, z) => { nodes.push([x, y, z]); FG.push(0); FQ.push(0); return nodes.length - 1; };
@@ -1168,6 +1226,9 @@ function computeLoads(q) {
     J: (bw + 50) * CARRIER ** 3 / 3 + OAK.G / STEEL.G * 0.29 * bw * d.t ** 3,
     ref: [0, 1, 0],
   };
+  // Zware drager: dezelfde trede met een koker 100x100x5 eronder
+  const treadHeavy = { ...tread, A: tread.A + TIE_SEC.A, Iy: tread.Iy + TIE_SEC.I, Iz: tread.Iz + TIE_SEC.I, J: tread.J + TIE_SEC.J };
+  const wK = TIE_SEC.A * (d.rOut - d.rIn) * STEEL.g;
   const area = 0.5 * (d.rOut ** 2 - d.rIn ** 2) * d.dA;
   const rc = 2 / 3 * (d.rOut ** 3 - d.rIn ** 3) / (d.rOut ** 2 - d.rIn ** 2);
   const share = (rc - rI) / (rO - rI);
@@ -1175,7 +1236,9 @@ function computeLoads(q) {
   const wQ = area * q * 1e-3;
   for (let i = 1; i <= d.nT; i++) {
     const f = (i - 0.5) * d.dA, ni = inner.at(f), no = outer.at(f);
-    els.push({ i: ni, j: no, ...tread });
+    const big = heavy.has(i);
+    els.push({ i: ni, j: no, ...(big ? treadHeavy : tread) });
+    if (big) { FG[no] += wK / 2; FG[ni] += wK / 2; }
     FG[no] += wG * share; FG[ni] += wG * (1 - share);
     FQ[no] += wQ * share; FQ[ni] += wQ * (1 - share);
   }
@@ -1239,7 +1302,17 @@ function computeLoads(q) {
   return {
     rows, q, sag,
     WG: kN(FG.reduce((a, b) => a + b, 0)), WQ: kN(FQ.reduce((a, b) => a + b, 0)),
-    d, ties,
+    d, ties, heavy: [...heavy].sort((a, b) => a - b),
+    mOut: (() => {   // grootste moment in de buitenboom, buiging en wringing samen, kNm
+      const set = new Set(outer.ids);
+      let m = 0;
+      for (const el of els) {
+        if (!set.has(el.i) || !set.has(el.j)) continue;
+        const a = sol.endForce(el, 0), b = sol.endForce(el, 1);
+        m = Math.max(m, Math.hypot(a[3] + b[3], a[4] + b[4], a[5] + b[5]));
+      }
+      return m / 1e6;
+    })(),
     depthIn: inner.depth, depthOut: outer.depth,
   };
 }
@@ -1335,12 +1408,77 @@ function loadFigures(res, total) {
   return plan + elev;
 }
 
+// Zoekt stap voor stap de treden waar een zware drager de buitenboom het meest ontlast: telkens komt de
+// trede erbij die de som van de krachten op de voetplaat en het handje van de buitenboom het kleinst maakt.
+async function bestHeavy(n, q, onStep) {
+  const nT = derive().nT, chosen = [];
+  const score = set => {
+    let v = 0;
+    for (const x of computeLoads(q, set).rows) {
+      if (x.id === 'B' || x.id === 'D') v += Math.hypot(x.G.V + x.Q.V, x.G.Hx + x.Q.Hx, x.G.Hz + x.Q.Hz);
+    }
+    return v;
+  };
+  const before = score([]);
+  const count = Math.min(n, nT);
+  let total = 0, done = 0, after = before;
+  for (let k = 0; k < count; k++) total += nT - k;
+  for (let k = 0; k < count; k++) {
+    let best = null;
+    for (let i = 1; i <= nT; i++) {
+      if (chosen.includes(i)) continue;
+      const v = score([...chosen, i]);
+      if (!best || v < best.v) best = { i, v };
+      if (++done % 2 === 0 && onStep) { onStep(done, total); await new Promise(r => setTimeout(r)); }
+    }
+    chosen.push(best.i); after = best.v;
+  }
+  // Nazoeken: levert het verplaatsen van een enkele drager nog winst op, dan wordt die verplaatst
+  for (let pass = 0; pass < 2; pass++) {
+    let moved = false;
+    for (let k = 0; k < chosen.length; k++) {
+      for (let i = 1; i <= nT; i++) {
+        if (chosen.includes(i)) continue;
+        const trial = chosen.slice(); trial[k] = i;
+        const v = score(trial);
+        if (v < after - 1e-6) { chosen[k] = i; after = v; moved = true; }
+      }
+      if (onStep) { onStep(total, total); await new Promise(r => setTimeout(r)); }
+    }
+    if (!moved) break;
+  }
+  return { treads: chosen.sort((a, b) => a - b), before, after };
+}
+
+const readQ = () => Math.min(10, Math.max(0, parseFloat(String($('q-load').value).replace(',', '.')) || 0));
+
+let heavyFound = null;
+const heavyKey = () => [...heavySet(derive())].sort((a, b) => a - b).join(',') + '|' + P.heavyN;
+
+async function findHeavy() {
+  const btn = $('btn-heavy'), status = $('heavy-status');
+  if (btn.disabled) return;
+  btn.disabled = true;
+  try {
+    const q = readQ();
+    const r = await bestHeavy(P.heavyN, q, (a, b) => { status.textContent = `Bezig met zoeken: ${a} van ${b} varianten doorgerekend.`; });
+    r.treads.forEach((t, k) => { P['heavy' + (k + 1)] = t; });
+    heavyFound = heavyKey();
+    syncInputs(); update();
+    status.textContent = `Gunstigste plekken: trede ${r.treads.join(', ')}. De krachten op de voetplaat en het handje van de ` +
+      `buitenboom gaan samen van ${nl(r.before, 1)} naar ${nl(r.after, 1)} kN, bij q = ${nl(q, 1)} kN/m².`;
+  } catch (err) {
+    status.textContent = 'Het zoeken is niet gelukt: ' + err.message;
+  }
+  btn.disabled = false;
+}
+
 let loadSig = null;
 const loadKey = () => JSON.stringify(P) + '|' + $('q-load').value;
 
 function runLoads() {
   const status = $('load-status'), out = $('load-out');
-  const q = Math.min(10, Math.max(0, parseFloat(String($('q-load').value).replace(',', '.')) || 0));
+  const q = readQ();
   let res = null;
   try {
     res = computeLoads(q);
@@ -1381,7 +1519,7 @@ function runLoads() {
     `op het steunpunt drukt, negatief als hij eraan trekt. H is de horizontale kracht, axiaal is positief bij trek in de koker, ` +
     `M is het buigend moment van de koker op de plaat. Elke plaat heeft twee ankers, links en rechts op halve hoogte. Komt de koker bij een hoek van de kolom uit, dan is het een hoekplaat om die hoek met op elk vlak een anker. De trek per anker bevat ook het koppel tussen het anker en de plaatrand die op de kolom drukt. Rekenmodel: bomen, treden, kokers en kolom als staven; voetplaten en ` +
     `handjes scharnierend; kokers star aan de kolomplaat en de boom. De boom rekent mee met zijn doorsnede haaks op de helling: ` +
-    `binnen ${nl(res.depthIn)} mm, buiten ${nl(res.depthOut)} mm hoog. Grootste zakking in het model: ${nl(res.sag, 1)} mm. ` +
+    `binnen ${nl(res.depthIn)} mm, buiten ${nl(res.depthOut)} mm hoog. ${res.heavy.length ? 'Zware tredendragers bij trede ' + res.heavy.join(', ') + '. ' : 'Geen zware tredendragers. '}Grootste zakking in het model: ${nl(res.sag, 1)} mm; grootste moment in de buitenboom: ${nl(res.mOut, 1)} kNm. ` +
     `Indicatief, geen vervanging van de berekening van de constructeur.`;
   out.hidden = false; out.classList.remove('stale');
   loadSig = loadKey();
@@ -1598,6 +1736,7 @@ function start(saved) {
     $('export').hidden = false;
   }
   $('btn-loads').addEventListener('click', runLoads);
+  $('btn-heavy').addEventListener('click', findHeavy);
   $('q-load').addEventListener('input', flagLoads);
   $('btn-reset').addEventListener('click', () => {
     Object.assign(P, DEFAULTS);
@@ -1606,7 +1745,7 @@ function start(saved) {
   });
 }
 
-window.wenteltrap = { ifc: buildIfc, zip: zipStore, frame: frameSolve, loads: computeLoads };
+window.wenteltrap = { ifc: buildIfc, zip: zipStore, frame: frameSolve, loads: computeLoads, bestHeavy };
 
 const hot = window.claude && window.claude.hot;
 if (hot && hot.snapshot) hot.snapshot(() => ({ v: STATE_V, P, view }));

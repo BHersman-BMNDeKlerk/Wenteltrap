@@ -1,0 +1,982 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{color-scheme:light;padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Wenteltrap Generator</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: tekentafel. Links een smal parameterpaneel (het "titelblok"), rechts het model,
+   daaronder een controlestrook met de afgeleide trapmaten. Op telefoon: model, controle, parameters. */
+:root {
+  --bg: #e9edf1;
+  --panel: #f7f9fb;
+  --ink: #17212c;
+  --muted: #586675;
+  --line: #cdd5dd;
+  --field: #ffffff;
+  --accent: #1d4ed8;        /* maatlijn-blauw uit de tekening */
+  --accent-ink: #ffffff;
+  --ok: #17734a;
+  --warn: #b3261e;          /* maatlijn-rood uit de tekening */
+  --scene-bg: #dfe5ea;
+  --scene-floor: #eef1f4;
+  --scene-grid: #c3ccd5;
+  --scene-grid-major: #9aa6b2;
+  --font-display: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #10151b; --panel: #161d25; --ink: #e5eaf0; --muted: #94a1ae; --line: #2a3440;
+    --field: #0f141a; --accent: #7ea3ff; --accent-ink: #0b1220; --ok: #4fcb88; --warn: #ff7a6e;
+    --scene-bg: #0c1116; --scene-floor: #151c24; --scene-grid: #25303b; --scene-grid-major: #3b4856;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #10151b; --panel: #161d25; --ink: #e5eaf0; --muted: #94a1ae; --line: #2a3440;
+  --field: #0f141a; --accent: #7ea3ff; --accent-ink: #0b1220; --ok: #4fcb88; --warn: #ff7a6e;
+  --scene-bg: #0c1116; --scene-floor: #151c24; --scene-grid: #25303b; --scene-grid-major: #3b4856;
+  color-scheme: dark;
+}
+
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 14px; line-height: 1.45;
+}
+*, *::before, *::after { box-sizing: border-box; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.app { height: 100%; display: grid; grid-template-columns: 340px minmax(0, 1fr); }
+
+/* ---------- paneel ---------- */
+.panel {
+  background: var(--panel); border-right: 1px solid var(--line);
+  overflow-y: auto; min-height: 0;
+  padding-block: 20px 28px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: 16px;
+  display: flex; flex-direction: column; gap: 22px;
+}
+.title h1 {
+  font-family: var(--font-display); font-weight: 600; font-size: 26px; line-height: 1.1;
+  letter-spacing: 0.01em; margin: 0; text-wrap: balance;
+}
+.title p { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+.title button {
+  margin-top: 12px; border: 1px solid var(--line); border-radius: 4px; background: var(--field); color: var(--ink);
+  font: 500 13px var(--font-body); padding: 6px 12px; cursor: pointer;
+}
+.title button:hover { border-color: var(--accent); }
+
+.group { display: flex; flex-direction: column; gap: 12px; }
+.group > h2 {
+  font-family: var(--font-display); font-weight: 600; font-size: 13px;
+  text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted);
+  margin: 0; padding-bottom: 6px; border-bottom: 1px solid var(--line);
+}
+.row { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 10px; row-gap: 2px; align-items: center; }
+.row label { font-size: 13px; }
+.row .num { display: flex; align-items: baseline; gap: 5px; }
+.row .num input {
+  width: 68px; text-align: right; padding: 3px 6px;
+  font-family: var(--font-data); font-size: 13px; font-variant-numeric: tabular-nums;
+  color: var(--ink); background: var(--field);
+  border: 1px solid var(--line); border-radius: 3px;
+}
+.row .num span { font-family: var(--font-data); font-size: 11px; color: var(--muted); width: 22px; }
+.row input[type="range"] { grid-column: 1 / -1; width: 100%; margin: 0; accent-color: var(--accent); }
+
+.seg { display: flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; background: var(--field); }
+.seg button {
+  flex: 1; border: 0; background: transparent; color: var(--ink);
+  font: 500 13px var(--font-body); padding: 6px 10px; cursor: pointer;
+}
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.optrow { display: flex; flex-direction: column; gap: 5px; }
+.optrow > span { font-size: 13px; }
+
+.checks-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+.checks-list.one { grid-template-columns: 1fr; }
+.checks-list label { display: flex; align-items: center; gap: 7px; font-size: 13px; cursor: pointer; }
+.checks-list input { accent-color: var(--accent); margin: 0; width: 15px; height: 15px; }
+
+.note { font-size: 12px; color: var(--muted); margin: 0; }
+
+/* ---------- model + controle ---------- */
+.stage { min-width: 0; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; }
+.viewer { position: relative; min-height: 0; background: var(--scene-bg); overflow: hidden; }
+.viewer canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.viewer .views {
+  position: absolute; top: 12px; left: 12px; width: 190px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+.viewer .export {
+  position: absolute; top: 12px; right: max(12px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; align-items: flex-end; gap: 6px; max-width: 46%;
+}
+.viewer .export button {
+  border: 1px solid var(--line); border-radius: 4px; background: var(--field); color: var(--ink);
+  font: 500 13px var(--font-body); padding: 6px 12px; cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+.viewer .export button:hover { border-color: var(--accent); }
+.viewer .export p { margin: 0; font-size: 12px; color: var(--muted); text-align: right; }
+.viewer .export p:empty { display: none; }
+.viewer .hint {
+  position: absolute; left: 12px; bottom: 10px; margin: 0;
+  right: max(12px, env(safe-area-inset-right, 0px));
+  font-size: 12px; color: var(--muted); pointer-events: none;
+}
+.viewer .fail {
+  position: absolute; inset: 0; display: grid; place-items: center; padding: 24px;
+  text-align: center; color: var(--muted);
+}
+
+.control {
+  border-top: 1px solid var(--line); background: var(--panel);
+  padding-block: 12px 14px;
+  padding-left: 16px;
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.control header { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-bottom: 10px; }
+.control h2 {
+  font-family: var(--font-display); font-weight: 600; font-size: 13px;
+  text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); margin: 0;
+}
+.control .seg { flex: none; }
+.control .seg button { padding: 4px 10px; font-size: 12.5px; white-space: nowrap; }
+.control header p { margin: 0; font-size: 12px; color: var(--muted); }
+.cells { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 18px; margin: 0; }
+.cell { min-width: 0; border-left: 2px solid var(--line); padding-left: 9px; }
+.cell.ok { border-left-color: var(--ok); }
+.cell.warn { border-left-color: var(--warn); }
+.cell dt { font-size: 12px; color: var(--muted); }
+.cell dd { margin: 0; }
+.cell .val {
+  font-family: var(--font-data); font-weight: 500; font-size: 18px; line-height: 1.25;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.cell .val small { font-size: 11px; font-weight: 400; color: var(--muted); margin-left: 3px; }
+.cell .ref { font-size: 11.5px; color: var(--muted); }
+.cell.ok .ref b { color: var(--ok); font-weight: 600; }
+.cell.warn .ref b { color: var(--warn); font-weight: 600; }
+
+@media (min-width: 1500px) { .cells { grid-template-columns: repeat(8, minmax(0, 1fr)); } }
+
+@media (max-width: 860px) {
+  html, body { height: auto; }
+  .app { display: flex; flex-direction: column; height: auto; }
+  .stage { order: 1; display: block; }
+  .panel {
+    order: 2; overflow: visible; border-right: 0; border-top: 1px solid var(--line);
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .viewer { height: 420px; max-height: 62vh; }
+  .control { padding-left: max(16px, env(safe-area-inset-left, 0px)); }
+  .cells { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+</style>
+
+<div class="app">
+  <aside class="panel" aria-label="Parameters">
+    <div class="title">
+      <h1>Wenteltrap generator</h1>
+      <p>Trap A: rechtsom, 270°. Treden R&nbsp;=&nbsp;1.500 volgens de omschrijving.</p>
+      <button type="button" id="btn-reset">Standaardwaarden herstellen</button>
+    </div>
+
+    <section class="group" id="g-maat">
+      <h2>Hoofdmaten</h2>
+    </section>
+
+    <section class="group" id="g-vorm">
+      <h2>Vorm</h2>
+      <div class="optrow">
+        <span id="lbl-dir">Draairichting omhoog</span>
+        <div class="seg" role="group" aria-labelledby="lbl-dir" data-key="dir">
+          <button type="button" id="dir-cw" data-val="1">Rechtsom</button>
+          <button type="button" id="dir-ccw" data-val="-1">Linksom</button>
+        </div>
+      </div>
+      <div class="optrow">
+        <span id="lbl-core">Binnenzijde</span>
+        <div class="seg" role="group" aria-labelledby="lbl-core" data-key="core">
+          <button type="button" id="core-wang" data-val="wang">Binnenboom</button>
+          <button type="button" id="core-spil" data-val="spil">Spil (kolom)</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="group" id="g-detail">
+      <h2>Uitvoering</h2>
+      <p class="note">Vast volgens de omschrijving: handregel buis Ø42,4, balusters plat 60×12, bomen van plaat 10 mm, tredendragers van plaat 3 mm, eiken treden met één antislipstrook.</p>
+    </section>
+
+    <section class="group" id="g-kolom">
+      <h2>Kolom KK250/10</h2>
+      <div class="checks-list one">
+        <label><input type="checkbox" id="o-column" data-key="column"> Kolom 250/10 tot onder de vloer</label>
+        <label><input type="checkbox" id="o-ties" data-key="ties"> Trap op 3 punten aan kolom gekoppeld</label>
+      </div>
+    </section>
+
+    <section class="group">
+      <h2>Onderdelen</h2>
+      <div class="checks-list">
+        <label><input type="checkbox" id="o-risers" data-key="risers"> Stootborden</label>
+        <label><input type="checkbox" id="o-landing" data-key="landing"> Vloer boven</label>
+        <label><input type="checkbox" id="o-railOut" data-key="railOut"> Buitenleuning</label>
+        <label><input type="checkbox" id="o-railIn" data-key="railIn"> Binnenleuning</label>
+        <label><input type="checkbox" id="o-showLoop" data-key="showLoop"> Looplijn</label>
+      </div>
+    </section>
+
+    <p class="note">Draaihoek en kolompositie komen uit de tekening, R&nbsp;=&nbsp;1.500 en de uitvoering uit de omschrijving. De tekening geeft R&nbsp;=&nbsp;1.800. Het aantal optreden is geschat; vul de werkelijke waarde in.</p>
+  </aside>
+
+  <main class="stage">
+    <div class="viewer" id="viewer">
+      <canvas id="scene" aria-label="3D-model van de wenteltrap"></canvas>
+      <div class="seg views" role="group" aria-label="Aanzicht" data-key="view">
+        <button type="button" id="view-3d" data-val="3d">3D</button>
+        <button type="button" id="view-top" data-val="top">Boven</button>
+        <button type="button" id="view-front" data-val="front">Voor</button>
+      </div>
+      <div class="export" id="export" hidden>
+        <button type="button" id="btn-ifc" title="IFC4-bestand, zonder de vloer">IFC exporteren</button>
+        <p id="ifc-status" role="status"></p>
+      </div>
+      <p class="hint" id="hint">Slepen draait · scrollen of knijpen zoomt · rechtermuisknop verschuift</p>
+    </div>
+
+    <section class="control" aria-label="Controle">
+      <header>
+        <h2 id="lbl-use">Controle</h2>
+        <div class="seg" role="group" aria-labelledby="lbl-use" data-key="use">
+          <button type="button" id="use-woon" data-val="woon">Woning</button>
+          <button type="button" id="use-overig" data-val="overig">Overig</button>
+          <button type="button" id="use-vlucht" data-val="vlucht">Vluchttrap</button>
+        </div>
+        <p id="norm-note"></p>
+      </header>
+      <dl class="cells" id="cells"></dl>
+    </section>
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(() => {
+'use strict';
+
+const DEG = Math.PI / 180;
+const WT = 10;          // plaatdikte van de bomen (mm)
+const CARRIER = 3;      // plaatdikte van de tredendragers (mm)
+const TUBE = 42.4;      // handregel, buis (mm)
+const STATE_V = 6;      // versie van de uitgangspunten; oudere bewaarde waarden vervallen
+const STEP = 2.5 * DEG; // facetgrootte van gebogen vlakken
+
+// Parameters in mm en graden.
+const P = {
+  rOut: 1500, rIn: 400, H: 3750, N: 18, sweep: 270, start: 0,
+  dir: 1, core: 'wang',
+  loop: 400, t: 54, rail: 1000, boomOut: 300, boomIn: 300,
+  risers: false, landing: true, railOut: true, railIn: true, showLoop: true,
+  column: true, ties: true, colX: 171, colY: 158,
+  use: 'vlucht',
+};
+const DEFAULTS = { ...P };
+let view = '3d';
+
+// Grenswaarden uit Bbl tabel 4.26 (nieuwbouw), in mm. Breedte, afstand van de klimlijn tot de zijkant
+// en de maximale traphoogte zijn in alle kolommen gelijk.
+const NORM = {
+  woon:   { label: 'reguliere trap, woonfunctie',              riser: 188, going: 220, head: 2300 },
+  overig: { label: 'reguliere trap, andere gebruiksfuncties',  riser: 210, going: 185, head: 2100 },
+  vlucht: { label: 'trap uitsluitend voor ontvluchten',        riser: 210, going: 185, head: 2100 },
+};
+const NORM_WIDTH = 800, NORM_SIDE = 300, NORM_RISE = 4000;
+
+const FIELDS = [
+  { k: 'rOut',  g: 'g-maat',   label: 'Straal treden (R)',               unit: 'mm', min: 500, max: 3000, step: 10 },
+  { k: 'rIn',   g: 'g-maat',   label: 'Binnenstraal treden',               unit: 'mm', min: 50,  max: 2500, step: 10 },
+  { k: 'loop',  g: 'g-maat',   label: 'Looplijn t.o.v. binnenzijde trede', unit: 'mm', min: 0, max: 1000, step: 10 },
+  { k: 'H',     g: 'g-maat',   label: 'Verdiepingshoogte',          unit: 'mm', min: 500, max: 8000, step: 10 },
+  { k: 'N',     g: 'g-maat',   label: 'Aantal optreden',            unit: 'st', min: 3,   max: 60,   step: 1 },
+  { k: 'sweep', g: 'g-maat',   label: 'Draaihoek',                  unit: '°',  min: 30,  max: 900,  step: 5 },
+  { k: 'start', g: 'g-maat',   label: 'Starthoek (0° = boven)',     unit: '°',  min: 0,   max: 355,  step: 5 },
+  { k: 't',     g: 'g-detail', label: 'Tredendikte',                unit: 'mm', min: 20,  max: 200,  step: 1 },
+  { k: 'boomOut', g: 'g-detail', label: 'Hoogte buitenboom',        unit: 'mm', min: 150, max: 600,  step: 10 },
+  { k: 'boomIn',  g: 'g-detail', label: 'Hoogte binnenboom',        unit: 'mm', min: 150, max: 600,  step: 10 },
+  { k: 'rail',  g: 'g-detail', label: 'Leuninghoogte',              unit: 'mm', min: 800, max: 1200, step: 10 },
+  { k: 'colX',  g: 'g-kolom',  label: 'Hart kolom tot hart trap, langs vloerrand', unit: 'mm', min: 125, max: 1000, step: 1 },
+  { k: 'colY',  g: 'g-kolom',  label: 'Hart kolom tot hart trap, haaks op vloerrand', unit: 'mm', min: 125, max: 1000, step: 1 },
+];
+
+/* ------------------------------------------------------------------ afgeleide maten */
+function derive() {
+  const rOut = P.rOut;
+  const rIn = Math.max(50, Math.min(P.rIn, rOut - 300));
+  const spil = P.core === 'spil';
+  const rTi = rIn, rTo = rOut;             // treden lopen van boom tot boom
+  const N = Math.round(P.N), nT = N;       // evenveel treden als optreden: de bovenste trede ligt op vloerhoogte
+  const h = P.H / N;
+  const sweep = P.sweep * DEG;
+  const dA = sweep / nT;
+  const rl = Math.min(rTi + P.loop, rTo);
+  const going = rl * dA;                   // aantrede op de looplijn (booglengte)
+  return {
+    rOut, rIn, spil, rTi, rTo, N, nT, h, sweep, dA, rl, going,
+    goingIn: rTi * dA,
+    width: rTo - rTi,
+    formula: 2 * h + going,
+    pitch: Math.atan2(h, going) / DEG,
+    headroom: P.sweep > 360 ? (2 * Math.PI / dA) * h - P.t : null,
+    a0: P.start * DEG, dir: P.dir, H: P.H, t: P.t, rail: P.rail,
+    yN: f => Math.min(P.H, h * (f / dA + 1)), // lijn door de tredeneuzen, vlak boven de bovenste trede
+  };
+}
+
+/* ------------------------------------------------------------------ bediening */
+const $ = id => document.getElementById(id);
+
+function buildFields() {
+  for (const f of FIELDS) {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML =
+      `<label for="p-${f.k}">${f.label}</label>` +
+      `<span class="num"><input type="number" id="p-${f.k}" min="${f.min}" max="${f.max}" step="${f.step}" inputmode="numeric"><span>${f.unit}</span></span>` +
+      `<input type="range" id="r-${f.k}" min="${f.min}" max="${f.max}" step="${f.step}" aria-label="${f.label}">`;
+    $(f.g).appendChild(row);
+    const num = $('p-' + f.k), rng = $('r-' + f.k);
+    rng.addEventListener('input', () => { P[f.k] = +rng.value; num.value = rng.value; schedule(); });
+    num.addEventListener('input', () => {
+      const v = parseFloat(num.value);
+      if (Number.isFinite(v) && v >= f.min && v <= f.max) { P[f.k] = v; rng.value = v; schedule(); }
+    });
+    num.addEventListener('change', () => {
+      let v = parseFloat(num.value);
+      if (!Number.isFinite(v)) v = P[f.k];
+      v = Math.min(f.max, Math.max(f.min, v));
+      if (f.step === 1) v = Math.round(v);
+      P[f.k] = v; syncInputs(); schedule();
+    });
+  }
+  document.querySelectorAll('.seg').forEach(seg => {
+    seg.addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b) return;
+      const key = seg.dataset.key;
+      if (key === 'view') { setView(b.dataset.val); return; }
+      P[key] = key === 'dir' ? +b.dataset.val : b.dataset.val;
+      syncInputs(); schedule();
+    });
+  });
+  document.querySelectorAll('.checks-list input').forEach(c => {
+    c.addEventListener('change', () => { P[c.dataset.key] = c.checked; syncInputs(); schedule(); });
+  });
+}
+
+function syncInputs() {
+  for (const f of FIELDS) {
+    const num = $('p-' + f.k);
+    if (document.activeElement !== num) num.value = P[f.k];
+    $('r-' + f.k).value = P[f.k];
+  }
+  document.querySelectorAll('.seg').forEach(seg => {
+    const cur = seg.dataset.key === 'view' ? view : String(P[seg.dataset.key]);
+    seg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.val === cur)));
+  });
+  document.querySelectorAll('.checks-list input').forEach(c => { c.checked = !!P[c.dataset.key]; });
+  $('o-railIn').disabled = P.core === 'spil';
+  $('o-ties').disabled = !P.column || P.core === 'spil';
+  for (const k of ['colX', 'colY']) $('p-' + k).disabled = $('r-' + k).disabled = !P.column;
+}
+
+const nl = (v, d = 0) => v.toLocaleString('nl-NL', { minimumFractionDigits: d, maximumFractionDigits: d });
+
+function renderChecks(d) {
+  const cell = (label, value, unit, ref, state) => {
+    const cls = state == null ? '' : state ? ' ok' : ' warn';
+    const verdict = state == null ? '' : state ? '<b>voldoet</b> · ' : '<b>let op</b> · ';
+    return `<div class="cell${cls}"><dt>${label}</dt>` +
+      `<dd class="val">${value}<small>${unit}</small></dd><dd class="ref">${verdict}${ref}</dd></div>`;
+  };
+  const n = NORM[P.use] || NORM.woon;
+  const side = Math.min(d.rl - d.rIn, d.rOut - d.rl);
+  $('norm-note').textContent = `Bbl tabel 4.26, nieuwbouw: ${n.label}. Toets altijd aan de officiële tekst.`;
+  $('cells').innerHTML = [
+    cell('Optrede', nl(d.h, 1), 'mm', `max. ${n.riser}`, d.h <= n.riser + 0.05),
+    cell('Aantrede op looplijn', nl(d.going), 'mm', `min. ${n.going} · op r = ${nl(d.rl)}`, d.going >= n.going - 0.5),
+    cell('Looplijn tot zijkant', nl(side), 'mm', `min. ${NORM_SIDE}`, side >= NORM_SIDE - 0.5),
+    cell('Breedte tussen bomen', nl(d.width), 'mm', `min. ${NORM_WIDTH}`, d.width >= NORM_WIDTH),
+    d.headroom == null
+      ? cell('Vrije hoogte', 'n.v.t.', '', `min. ${nl(n.head)} · draaihoek tot 360°`, null)
+      : cell('Vrije hoogte', nl(d.headroom), 'mm', `min. ${nl(n.head)}`, d.headroom >= n.head),
+    cell('Hoogte trap', nl(d.H), 'mm', `max. ${nl(NORM_RISE)} zonder bordes`, d.H <= NORM_RISE),
+    cell('Trapformule 2·O + A', nl(d.formula), 'mm', `vuistregel 570 tot 630 · helling ${nl(d.pitch, 1)}°`, d.formula >= 569.5 && d.formula <= 630.5),
+    cell('Hoek per trede', nl(d.dA / DEG, 1), '°', `${d.nT} treden · binnenzijde ${nl(d.goingIn)} mm`, null),
+  ].join('');
+}
+
+/* ------------------------------------------------------------------ 3D-scene */
+const viewer = $('viewer'), canvas = $('scene');
+let renderer, scene, camP, camO, ctlP, ctlO, sun, ground, grid, model;
+let orthoSize = 3, queued = false;
+const mats = {};
+
+const token = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+function initScene() {
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  scene = new THREE.Scene();
+  camP = new THREE.PerspectiveCamera(32, 1, 0.1, 200);
+  camO = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200);
+
+  ctlP = new THREE.OrbitControls(camP, canvas);
+  ctlP.maxPolarAngle = Math.PI / 2 - 0.02;
+  ctlP.minDistance = 1; ctlP.maxDistance = 60;
+  ctlO = new THREE.OrbitControls(camO, canvas);
+  ctlO.enableRotate = false;
+  ctlO.mouseButtons.LEFT = THREE.MOUSE.PAN;
+  ctlO.touches.ONE = THREE.TOUCH.PAN;
+  ctlO.enabled = false;
+  ctlP.addEventListener('change', render);
+  ctlO.addEventListener('change', render);
+
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x8a9099, 0.5));
+  sun = new THREE.DirectionalLight(0xffffff, 0.55);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.bias = -0.0004;
+  sun.shadow.normalBias = 0.02;
+  scene.add(sun, sun.target);
+
+  ground = new THREE.Mesh(new THREE.CircleGeometry(40, 64), new THREE.MeshStandardMaterial({ roughness: 1 }));
+  ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  mats.steel = new THREE.MeshStandardMaterial({ color: 0x5a6672, metalness: 0.25, roughness: 0.5 });
+  mats.wood = new THREE.MeshStandardMaterial({ color: 0xc89b5f, roughness: 0.72 });
+  mats.concrete = new THREE.MeshStandardMaterial({ color: 0xb3b9bf, roughness: 0.95 });
+  mats.rubber = new THREE.MeshStandardMaterial({ color: 0x17191c, roughness: 0.9 });
+  mats.loop = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+
+  model = new THREE.Group();
+  model.scale.setScalar(0.001); // model in mm, scene in m
+  scene.add(model);
+
+  applyTheme();
+  new ResizeObserver(resize).observe(viewer);
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+  new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+}
+
+function applyTheme() {
+  scene.background = new THREE.Color(token('--scene-bg'));
+  ground.material.color.set(token('--scene-floor'));
+  mats.loop.color.set(token('--accent'));
+  if (grid) { scene.remove(grid); grid.geometry.dispose(); grid.material.dispose(); }
+  grid = new THREE.GridHelper(20, 40, token('--scene-grid-major'), token('--scene-grid')); // raster 500 mm
+  grid.position.y = 0.002;
+  scene.add(grid);
+  render();
+}
+
+const activeCam = () => (view === '3d' ? camP : camO);
+function render() { if (renderer) renderer.render(scene, activeCam()); }
+
+function resize() {
+  const w = viewer.clientWidth, h = viewer.clientHeight;
+  if (!w || !h) return;
+  renderer.setSize(w, h, false);
+  camP.aspect = w / h; camP.updateProjectionMatrix();
+  setOrtho();
+  render();
+}
+function setOrtho() {
+  const a = viewer.clientWidth / Math.max(1, viewer.clientHeight);
+  const s = a >= 1 ? orthoSize : orthoSize / a;
+  camO.left = -s * a; camO.right = s * a; camO.top = s; camO.bottom = -s;
+  camO.updateProjectionMatrix();
+}
+
+// Standaard kijkrichting: schuin op de opstap, met de vloer erachter.
+const viewAz = d => d.a0 + d.dir * 35 * DEG;
+
+// Zet de camera zo dat de hele trap in beeld is.
+function fit() {
+  const d = derive();
+  const R = d.rOut / 1000 + 1.0, top = (d.H + d.rail) / 1000;
+  const a = viewer.clientWidth / Math.max(1, viewer.clientHeight);
+  if (view === '3d') {
+    const bound = Math.hypot(R, top / 2);
+    const dist = bound / Math.sin((camP.fov * DEG) / 2) / Math.min(1, a) * 1.02;
+    ctlP.target.set(0, top / 2, 0);
+    const az = viewAz(d);
+    camP.position.set(Math.sin(az) * 0.9, 0.5, -Math.cos(az) * 0.9).normalize().multiplyScalar(dist).add(ctlP.target);
+    ctlP.update();
+  } else if (view === 'top') {
+    orthoSize = R * 1.15; camO.zoom = 1;
+    ctlO.target.set(0, 0, 0);
+    camO.position.set(0, 60, 0.001); // noord (0°) boven, zoals op de plattegrond
+    setOrtho(); ctlO.update();
+  } else {
+    orthoSize = Math.max(top / 2 * 1.2, R * 1.1 / Math.max(a, 1)); camO.zoom = 1;
+    ctlO.target.set(0, top / 2, 0);
+    camO.position.set(0, top / 2, 60);
+    setOrtho(); ctlO.update();
+  }
+}
+
+function setView(v) {
+  view = v;
+  ctlP.enabled = v === '3d'; ctlO.enabled = v !== '3d';
+  $('hint').textContent = v === '3d'
+    ? 'Slepen draait · scrollen of knijpen zoomt · rechtermuisknop verschuift'
+    : 'Slepen verschuift · scrollen of knijpen zoomt';
+  syncInputs(); fit(); render();
+}
+
+/* ------------------------------------------------------------------ geometrie */
+const UP = new THREE.Vector3(0, 1, 0), DOWN = new THREE.Vector3(0, -1, 0);
+const _n = new THREE.Vector3(), _m = new THREE.Vector3();
+
+// Vlak a-b-c-d als twee driehoeken, met de normaal naar 'hint' gericht.
+function quad(v, a, b, c, d, hint) {
+  _n.subVectors(b, a).cross(_m.subVectors(c, a));
+  if (_n.lengthSq() < 1e-9) _n.subVectors(c, a).cross(_m.subVectors(d, a));
+  const p = _n.dot(hint) < 0 ? [a, c, b, a, d, c] : [a, b, c, a, c, d];
+  for (const q of p) v.push(q.x, q.y, q.z);
+}
+
+function makeBuilder(d) {
+  const ang = f => d.a0 + d.dir * f;
+  const pt = (r, f, y) => { const a = ang(f); return new THREE.Vector3(r * Math.sin(a), y, -r * Math.cos(a)); };
+  const radial = f => { const a = ang(f); return new THREE.Vector3(Math.sin(a), 0, -Math.cos(a)); };
+  const tangent = f => { const a = ang(f); return new THREE.Vector3(Math.cos(a), 0, Math.sin(a)).multiplyScalar(d.dir); };
+
+  // Ringsector tussen rI en rO, van hoek f0 tot f1. Onder- en bovenkant volgen yb(f) en yt(f):
+  // constant voor een trede, oplopend voor een boom.
+  function sector(rI, rO, f0, f1, yb, yt) {
+    const n = Math.max(1, Math.ceil(Math.abs(f1 - f0) / STEP));
+    const v = [];
+    const ring = j => {
+      const f = f0 + (f1 - f0) * j / n, b = yb(f), t = yt(f);
+      return [pt(rI, f, b), pt(rO, f, b), pt(rO, f, t), pt(rI, f, t)];
+    };
+    let A = ring(0);
+    quad(v, A[0], A[1], A[2], A[3], tangent(f0).negate());
+    for (let j = 1; j <= n; j++) {
+      const B = ring(j), u = radial(f0 + (f1 - f0) * (j - 0.5) / n);
+      quad(v, A[0], A[1], B[1], B[0], DOWN);
+      quad(v, A[3], A[2], B[2], B[3], UP);
+      quad(v, A[1], A[2], B[2], B[1], u);
+      quad(v, A[0], A[3], B[3], B[0], u.clone().negate());
+      A = B;
+    }
+    quad(v, A[0], A[1], A[2], A[3], tangent(f1));
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
+    g.computeVertexNormals();
+    return g;
+  }
+  return { ang, pt, radial, tangent, sector };
+}
+
+// Benoemt de onderdelen die hierna worden toegevoegd. Alleen benoemde onderdelen gaan mee in de IFC-export;
+// de vloer, de looplijn en de pijl blijven dus buiten het bestand.
+let curPart = null;
+function part(cls, name, ptype, objType, inStair = true) {
+  curPart = cls ? { cls, name, ptype, objType, inStair } : null;
+}
+const nr = i => String(i).padStart(2, '0');
+
+function add(geom, mat, shadow = true) {
+  const m = new THREE.Mesh(geom, mat);
+  m.userData.part = curPart;
+  m.castShadow = shadow; m.receiveShadow = shadow;
+  model.add(m);
+  return m;
+}
+
+function buildModel(d) {
+  for (const c of model.children) c.geometry.dispose();
+  model.clear();
+  const B = makeBuilder(d);
+  // Rechte balk tegen de radiaal bij hoek f: radiaal van rA tot rB, in looprichting van t0 tot t1.
+  const slat = (f, rA, rB, y0, y1, t0, t1, mat) => {
+    const m = add(new THREE.BoxGeometry(rB - rA, y1 - y0, t1 - t0), mat);
+    m.position.copy(B.radial(f).multiplyScalar((rA + rB) / 2)).add(B.tangent(f).multiplyScalar((t0 + t1) / 2));
+    m.position.y = (y0 + y1) / 2;
+    m.rotation.y = Math.PI / 2 - B.ang(f);
+  };
+
+  // Treden: eiken op een tredendrager van 3 mm plaat met gezette voor- en achterrand
+  const stripIn = Math.max(d.rIn + 40, 70 / d.dA); // antislip begint waar de trede breed genoeg is
+  for (let i = 1; i <= d.nT; i++) {
+    const f0 = (i - 1) * d.dA, f1 = i * d.dA, top = i * d.h, under = top - d.t;
+    part('IfcMember', 'Trede ' + nr(i), 'USERDEFINED', 'Trede');
+    add(B.sector(d.rIn, d.rOut, f0, f1, () => under, () => top), mats.wood);
+    part('IfcPlate', 'Tredendrager ' + nr(i), 'SHEET');
+    add(B.sector(d.rIn, d.rOut, f0, f1, () => under - CARRIER, () => under), mats.steel);
+    slat(f0, d.rIn, d.rOut, under - 28, under - CARRIER, 0, CARRIER, mats.steel);
+    slat(f1, d.rIn, d.rOut, under - 28, under - CARRIER, -CARRIER, 0, mats.steel);
+    // Antislip: één strook zwart rubber achter de neus
+    part('IfcCovering', 'Antislip ' + nr(i), 'USERDEFINED', 'Antislipstrook');
+    if (stripIn < d.rOut - 40) slat(f0, stripIn, d.rOut - 40, top - 2, top + 2, 30, 50, mats.rubber);
+    part('IfcMember', 'Stootbord ' + nr(i), 'USERDEFINED', 'Stootbord');
+    if (P.risers && d.h - d.t > 5) slat(f0, d.rIn, d.rOut, (i - 1) * d.h, under - CARRIER, CARRIER, CARRIER + 15, mats.wood);
+    part(null);
+    if (P.showLoop) {
+      add(B.sector(d.rl - 7, d.rl + 7, f0, f1, () => top + 3, () => top + 5), mats.loop, false);
+    }
+  }
+
+  // Pijl op de eerste trede: looprichting omhoog, zoals op de plattegrond
+  if (P.showLoop && d.nT > 0) {
+    const y = d.h + 5, w = Math.min(70, d.width / 4);
+    const tri = new THREE.BufferGeometry().setFromPoints([
+      B.pt(d.rl - w, d.dA * 0.25, y), B.pt(d.rl + w, d.dA * 0.25, y), B.pt(d.rl, d.dA * 0.8, y),
+    ]);
+    add(tri, mats.loop, false);
+  }
+
+  // Bomen van gewalste plaat: de plaathoogte ligt gecentreerd om trede plus optrede,
+  // afgesneden op de vloer en op de verdieping
+  const boom = hgt => {
+    const off = (hgt - d.h - d.t) / 2;
+    return { top: f => Math.min(d.H, d.yN(f) + off), bot: f => Math.max(0, d.yN(f) + off - hgt) };
+  };
+  const bOut = boom(P.boomOut), bIn = boom(P.boomIn);
+  part('IfcMember', 'Buitenboom', 'STRINGER');
+  add(B.sector(d.rOut, d.rOut + WT, 0, d.sweep, bOut.bot, bOut.top), mats.steel);
+  if (d.spil) {
+    part('IfcColumn', 'Spil', 'COLUMN');
+    const col = add(new THREE.CylinderGeometry(d.rIn, d.rIn, d.H + d.rail, 48), mats.steel);
+    col.position.y = (d.H + d.rail) / 2;
+  } else {
+    part('IfcMember', 'Binnenboom', 'STRINGER');
+    add(B.sector(d.rIn - WT, d.rIn, 0, d.sweep, bIn.bot, bIn.top), mats.steel);
+  }
+
+  // Leuning: handregel buis 42,4 op balusters plat 60x12, één per optrede, tegen de zijkant van de boom
+  const railing = (r, bm, side) => {
+    const yRail = f => d.yN(f) + d.rail - TUBE / 2;
+    const pts = [], n = Math.max(2, Math.ceil(d.sweep / (6 * DEG)));
+    for (let j = 0; j <= n; j++) { const f = d.sweep * j / n; pts.push(B.pt(r, f, yRail(f))); }
+    part('IfcRailing', 'Handregel ' + side, 'HANDRAIL');
+    add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), n * 3, TUBE / 2, 12), mats.steel);
+    const e = 45 / r; // eindbalusters net binnen het einde van de boom
+    for (let k = 0; k <= d.nT; k++) {
+      const f = Math.min(d.sweep - e, Math.max(e, k * d.dA));
+      part('IfcMember', 'Baluster ' + side + ' ' + nr(k + 1), 'POST');
+      slat(f, r - 6, r + 6, Math.max(bm.bot(f), bm.top(f) - 120), yRail(f), -30, 30, mats.steel);
+    }
+  };
+  if (P.railOut) railing(d.rOut + WT + 6, bOut, 'buiten');
+  if (P.railIn && !d.spil) railing(d.rIn - WT - 6, bIn, 'binnen');
+
+  // Vloer van de verdieping, vanaf de laatste optrede
+  const slab = 200;
+  part(null);
+  if (P.landing) slat(d.sweep, 0, d.rOut + 800, d.H - slab, d.H, 0, d.rOut + 900, mats.concrete);
+
+  // Kolom KK250/10 in het schalmgat, uitgezet vanuit het hart van de trap langs en haaks op de vloerrand
+  if (P.column) {
+    const rot = Math.PI / 2 - B.ang(d.sweep);
+    const c = B.radial(d.sweep).multiplyScalar(P.colX).add(B.tangent(d.sweep).multiplyScalar(P.colY));
+    const topY = P.landing ? d.H - slab : d.H;
+    const block = (w, y0, y1) => {
+      const m = add(new THREE.BoxGeometry(w, y1 - y0, w), mats.steel);
+      m.position.set(c.x, (y0 + y1) / 2, c.z); m.rotation.y = rot;
+    };
+    part('IfcColumn', 'Kolom KK250/10', 'COLUMN', null, false);
+    block(250, 0, topY - 15);
+    part('IfcPlate', 'Voetplaat kolom', 'SHEET', null, false);
+    block(400, 0, 20);
+    part('IfcPlate', 'Kopplaat kolom', 'SHEET', null, false);  // tegen de onderkant van de vloer
+    block(330, topY - 15, topY);
+
+    // Drie koppelingen: koker 100/100 van de kolom naar de binnenboom, met een plaat op de boom.
+    // Ze zitten midden tussen twee balusters, in de zone onder de balustervoeten.
+    if (P.ties && !d.spil) {
+      for (const k of [1, 3, 5]) {
+        const f = Math.min(d.nT - 0.5, Math.floor(d.nT * k / 6) + 0.5) * d.dA;
+        const lo = bIn.bot(f), hi = Math.max(lo + 60, bIn.top(f) - 120);
+        const y = (lo + hi) / 2, ph = Math.min(160, hi - lo);
+        const p = B.pt(d.rIn - WT / 2, f, y);
+        const dx = p.x - c.x, dz = p.z - c.z;
+        part('IfcMember', 'Koppeling ' + (k + 1) / 2, 'STRUT');
+        const strut = add(new THREE.BoxGeometry(Math.hypot(dx, dz), Math.min(100, ph), 100), mats.steel);
+        strut.position.set((p.x + c.x) / 2, y, (p.z + c.z) / 2);
+        strut.rotation.y = Math.atan2(-dz, dx);
+        part('IfcPlate', 'Koppelplaat ' + (k + 1) / 2, 'SHEET');
+        const pl = add(new THREE.BoxGeometry(14, ph, 200), mats.steel);
+        pl.position.copy(B.pt(d.rIn - WT - 7, f, y));
+        pl.rotation.y = Math.PI / 2 - B.ang(f);
+      }
+    }
+  }
+
+  part(null);
+
+  // Licht en schaduw afstemmen op de afmetingen
+  const R = d.rOut / 1000, top = (d.H + d.rail) / 1000, s = Math.max(R + 2, top) + 1.5;
+  const aS = viewAz(d) + 65 * DEG, far = R * 1.5 + 3;
+  sun.position.set(Math.sin(aS) * far, top + 6, -Math.cos(aS) * far);
+  sun.target.position.set(0, top / 2, 0);
+  Object.assign(sun.shadow.camera, { left: -s, right: s, top: s, bottom: -s, near: 0.5, far: 40 + top });
+  sun.shadow.camera.updateProjectionMatrix();
+}
+
+// De looplijn kan nergens anders liggen dan op de trede: het bereik van de slider volgt de tredebreedte.
+function limitLoop() {
+  const f = FIELDS.find(x => x.k === 'loop'), num = $('p-loop'), rng = $('r-loop');
+  f.max = Math.floor(derive().width / 10) * 10;
+  num.max = rng.max = f.max;
+  if (P.loop > f.max) P.loop = f.max;
+  rng.value = P.loop;
+  if (document.activeElement !== num) num.value = P.loop;
+}
+
+function update() {
+  queued = false;
+  limitLoop();
+  const d = derive();
+  renderChecks(d);
+  if (renderer) { buildModel(d); render(); }
+}
+function schedule() { if (!queued) { queued = true; requestAnimationFrame(update); } }
+
+/* ------------------------------------------------------------------ IFC-export */
+// Schrijft het model als IFC4 (STEP-tekst): elke benoemde mesh wordt een IfcTriangulatedFaceSet,
+// in mm, met de Z-as omhoog. De vloer zit er niet in.
+function buildIfc() {
+  const d = derive();
+  const L = [];
+  let id = 0;
+  const E = body => { L.push('#' + (++id) + '=' + body + ';'); return '#' + id; };
+  const S = t => "'" + String(t).replace(/\\/g, '\\\\').replace(/'/g, "''")
+    .replace(/[^\x20-\x7e]/g, c => '\\X2\\' + c.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0') + '\\X0\\') + "'";
+  const R = v => { let t = String(Math.round(v * 100) / 100); if (t === '-0') t = '0'; return t.includes('.') ? t : t + '.'; };
+  const G = () => {
+    const c = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_$';
+    const b = crypto.getRandomValues(new Uint8Array(22));
+    return "'" + Array.from(b, (x, i) => c[i ? x & 63 : x & 3]).join('') + "'";
+  };
+
+  const person = E("IFCPERSON($,'Onbekend',$,$,$,$,$,$)");
+  const org = E("IFCORGANIZATION($,'Wenteltrap generator',$,$,$)");
+  const po = E(`IFCPERSONANDORGANIZATION(${person},${org},$)`);
+  const app = E(`IFCAPPLICATION(${org},'1.0','Wenteltrap generator','WTG')`);
+  const oh = E(`IFCOWNERHISTORY(${po},${app},$,.ADDED.,$,$,$,${Math.floor(Date.now() / 1000)})`);
+  const origin = E('IFCCARTESIANPOINT((0.,0.,0.))');
+  const wcs = E(`IFCAXIS2PLACEMENT3D(${origin},${E('IFCDIRECTION((0.,0.,1.))')},${E('IFCDIRECTION((1.,0.,0.))')})`);
+  const ctx = E(`IFCGEOMETRICREPRESENTATIONCONTEXT($,'Model',3,1.E-5,${wcs},$)`);
+  const bodyCtx = E(`IFCGEOMETRICREPRESENTATIONSUBCONTEXT('Body','Model',*,*,*,*,${ctx},$,.MODEL_VIEW.,$)`);
+  const units = E('IFCUNITASSIGNMENT((' + [
+    E('IFCSIUNIT(*,.LENGTHUNIT.,.MILLI.,.METRE.)'), E('IFCSIUNIT(*,.AREAUNIT.,$,.SQUARE_METRE.)'),
+    E('IFCSIUNIT(*,.VOLUMEUNIT.,$,.CUBIC_METRE.)'), E('IFCSIUNIT(*,.PLANEANGLEUNIT.,$,.RADIAN.)'),
+  ].join(',') + '))');
+  const project = E(`IFCPROJECT(${G()},${oh},'Wenteltrap',$,$,$,$,(${ctx}),${units})`);
+  const place = parent => E(`IFCLOCALPLACEMENT(${parent || '$'},${wcs})`);
+  const lpSite = place(), lpBuilding = place(lpSite), lpStorey = place(lpBuilding);
+  const site = E(`IFCSITE(${G()},${oh},'Terrein',$,$,${lpSite},$,$,.ELEMENT.,$,$,$,$,$)`);
+  const building = E(`IFCBUILDING(${G()},${oh},'Gebouw',$,$,${lpBuilding},$,$,.ELEMENT.,$,$,$)`);
+  const storey = E(`IFCBUILDINGSTOREY(${G()},${oh},'Peil 0',$,$,${lpStorey},$,$,.ELEMENT.,0.)`);
+  const aggregate = (whole, parts) => E(`IFCRELAGGREGATES(${G()},${oh},$,$,${whole},(${parts.join(',')}))`);
+  aggregate(project, [site]); aggregate(site, [building]); aggregate(building, [storey]);
+
+  // Materiaal en kleur per three.js-materiaal
+  const looks = new Map();
+  const look = (mat, name) => {
+    const c = mat.color;
+    const col = E(`IFCCOLOURRGB($,${R(c.r)},${R(c.g)},${R(c.b)})`);
+    const style = E(`IFCSURFACESTYLE(${S(name)},.BOTH.,(${E(`IFCSURFACESTYLESHADING(${col},0.)`)}))`);
+    looks.set(mat, { style, material: E(`IFCMATERIAL(${S(name)},$,$)`), elements: [] });
+  };
+  look(mats.steel, 'Staal'); look(mats.wood, 'Eiken'); look(mats.rubber, 'Rubber');
+
+  const v = new THREE.Vector3();
+  const faceSet = mesh => {
+    mesh.updateMatrix();
+    const pos = mesh.geometry.attributes.position, index = mesh.geometry.index;
+    const seen = new Map(), pts = [], tris = [];
+    const vertex = i => {
+      v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrix);
+      const key = R(v.x) + ',' + R(-v.z) + ',' + R(v.y);   // three.js (x, y omhoog, z) -> IFC (x, y, z omhoog)
+      let n = seen.get(key);
+      if (!n) { pts.push('(' + key + ')'); n = pts.length; seen.set(key, n); }
+      return n;
+    };
+    const count = index ? index.count : pos.count;
+    for (let i = 0; i < count; i += 3) {
+      const a = vertex(index ? index.getX(i) : i), b = vertex(index ? index.getX(i + 1) : i + 1), c = vertex(index ? index.getX(i + 2) : i + 2);
+      if (a !== b && b !== c && a !== c) tris.push(`(${a},${b},${c})`);
+    }
+    if (!tris.length) return null;
+    const fs = E(`IFCTRIANGULATEDFACESET(${E(`IFCCARTESIANPOINTLIST3D((${pts.join(',')}))`)},$,$,(${tris.join(',')}),$)`);
+    E(`IFCSTYLEDITEM(${fs},(${looks.get(mesh.material).style}),$)`);
+    return fs;
+  };
+
+  // Meshes per onderdeel groeperen: één IFC-element per onderdeel
+  const groups = new Map();
+  for (const m of model.children) {
+    const p = m.userData.part;
+    if (!p || !looks.has(m.material)) continue;
+    if (!groups.has(p)) groups.set(p, []);
+    groups.get(p).push(m);
+  }
+  const inStair = [], inStorey = [];
+  for (const [p, meshes] of groups) {
+    const items = meshes.map(faceSet).filter(Boolean);
+    if (!items.length) continue;
+    const rep = E(`IFCSHAPEREPRESENTATION(${bodyCtx},'Body','Tessellation',(${items.join(',')}))`);
+    const shape = E(`IFCPRODUCTDEFINITIONSHAPE($,$,(${rep}))`);
+    const el = E(`${p.cls.toUpperCase()}(${G()},${oh},${S(p.name)},$,${p.objType ? S(p.objType) : '$'},${place(lpStorey)},${shape},$,.${p.ptype}.)`);
+    looks.get(meshes[0].material).elements.push(el);
+    (p.inStair ? inStair : inStorey).push(el);
+  }
+
+  const stair = E(`IFCSTAIR(${G()},${oh},'Trap A',$,$,${place(lpStorey)},$,$,.SPIRAL_STAIR.)`);
+  if (inStair.length) aggregate(stair, inStair);
+  E(`IFCRELCONTAINEDINSPATIALSTRUCTURE(${G()},${oh},$,$,(${[stair, ...inStorey].join(',')}),${storey})`);
+  for (const k of looks.values()) {
+    if (k.elements.length) E(`IFCRELASSOCIATESMATERIAL(${G()},${oh},$,$,(${k.elements.join(',')}),${k.material})`);
+  }
+
+  const prop = (name, type, value) => E(`IFCPROPERTYSINGLEVALUE(${S(name)},$,${type}(${R(value)}),$)`);
+  const pset = (name, props) => {
+    const ps = E(`IFCPROPERTYSET(${G()},${oh},${S(name)},$,(${props.join(',')}))`);
+    E(`IFCRELDEFINESBYPROPERTIES(${G()},${oh},$,$,(${stair}),${ps})`);
+  };
+  pset('Pset_StairCommon', [
+    prop('NumberOfRiser', 'IFCCOUNTMEASURE', d.N), prop('NumberOfTreads', 'IFCCOUNTMEASURE', d.nT),
+    prop('RiserHeight', 'IFCPOSITIVELENGTHMEASURE', d.h), prop('TreadLength', 'IFCPOSITIVELENGTHMEASURE', d.going),
+  ]);
+  pset('Uitgangspunten', [
+    prop('StraalTreden', 'IFCLENGTHMEASURE', d.rOut), prop('BinnenstraalTreden', 'IFCLENGTHMEASURE', d.rIn),
+    prop('Verdiepingshoogte', 'IFCLENGTHMEASURE', d.H), prop('DraaihoekGraden', 'IFCREAL', P.sweep),
+    prop('LooplijnStraal', 'IFCLENGTHMEASURE', d.rl), prop('Tredendikte', 'IFCLENGTHMEASURE', d.t),
+  ]);
+
+  const stamp = new Date().toISOString().slice(0, 19);
+  return [
+    'ISO-10303-21;', 'HEADER;',
+    "FILE_DESCRIPTION(('ViewDefinition [ReferenceView_V1.2]'),'2;1');",
+    `FILE_NAME('wenteltrap.ifc','${stamp}',(''),(''),'Wenteltrap generator','Wenteltrap generator','');`,
+    "FILE_SCHEMA(('IFC4'));", 'ENDSEC;', 'DATA;', ...L, 'ENDSEC;', 'END-ISO-10303-21;', '',
+  ].join('\n');
+}
+
+// Zip met één onverpakt bestand. De opslagfunctie van de viewer kent de extensie .ifc niet, een zip wel.
+function zipStore(name, data) {
+  const table = new Uint32Array(256).map((_, n) => { for (let k = 0; k < 8; k++) n = n & 1 ? 0xedb88320 ^ (n >>> 1) : n >>> 1; return n; });
+  let crc = 0xffffffff;
+  for (const b of data) crc = table[(crc ^ b) & 255] ^ (crc >>> 8);
+  crc = (crc ^ 0xffffffff) >>> 0;
+  const fn = new TextEncoder().encode(name), t = new Date();
+  const time = (t.getHours() << 11) | (t.getMinutes() << 5) | (t.getSeconds() >> 1);
+  const date = ((t.getFullYear() - 1980) << 9) | ((t.getMonth() + 1) << 5) | t.getDate();
+  const out = new Uint8Array(30 + fn.length + data.length + 46 + fn.length + 22), dv = new DataView(out.buffer);
+  let o = 0;
+  const u16 = x => { dv.setUint16(o, x, true); o += 2; }, u32 = x => { dv.setUint32(o, x, true); o += 4; };
+  const bytes = b => { out.set(b, o); o += b.length; };
+  const common = () => { u16(20); u16(0x0800); u16(0); u16(time); u16(date); u32(crc); u32(data.length); u32(data.length); u16(fn.length); u16(0); };
+  u32(0x04034b50); common(); bytes(fn); bytes(data);
+  const cd = o;
+  u32(0x02014b50); u16(20); common(); u16(0); u16(0); u16(0); u32(0); u32(0); bytes(fn);
+  const cdSize = o - cd;
+  u32(0x06054b50); u16(0); u16(0); u16(1); u16(1); u32(cdSize); u32(cd); u16(0);
+  return out;
+}
+
+let downloads = null;
+async function exportIfc() {
+  const status = $('ifc-status');
+  if (!renderer) return;
+  update(); // het model moet overeenkomen met de ingevulde waarden
+  const name = `wenteltrap-R${Math.round(derive().rOut)}`;
+  if (!downloads) {
+    // Buiten claude.ai (bijvoorbeeld vanaf GitHub of lokaal) slaat de browser het bestand rechtstreeks op.
+    const url = URL.createObjectURL(new Blob([buildIfc()], { type: 'application/x-step' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = name + '.ifc';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    status.textContent = `Opgeslagen als ${name}.ifc.`;
+    return;
+  }
+  try {
+    const zip = zipStore(name + '.ifc', new TextEncoder().encode(buildIfc()));
+    status.textContent = 'Bevestig het opslaan in het venster.';
+    await downloads.save({ filename: name + '.zip', data: new Blob([zip]) });
+    status.textContent = `Opgeslagen. Pak ${name}.zip uit voor het IFC-bestand.`;
+  } catch (err) {
+    const code = err && err.code;
+    if (code === 'declined') status.textContent = '';
+    else if (code === 'rate_limited') status.textContent = 'Er staat nog een opslagvraag open. Probeer het daarna opnieuw.';
+    else if (code === 'too_large') status.textContent = 'Het bestand is te groot om hier op te slaan.';
+    else status.textContent = 'Opslaan lukt in deze weergave niet.';
+  }
+}
+
+/* ------------------------------------------------------------------ start */
+function start(saved) {
+  if (saved && saved.v === STATE_V && saved.P) Object.assign(P, saved.P);
+  if (saved && saved.view) view = saved.view;
+  buildFields();
+  syncInputs();
+  try {
+    initScene();
+  } catch (err) {
+    renderer = null;
+    canvas.hidden = true;
+    const msg = document.createElement('p');
+    msg.className = 'fail';
+    msg.textContent = 'De 3D-weergave kan niet starten: deze browser ondersteunt geen WebGL. De controlewaarden hieronder werken wel.';
+    viewer.appendChild(msg);
+  }
+  update();
+  if (renderer) { resize(); setView(view); }
+  // De exportknop verschijnt alleen waar de viewer bestanden kan opslaan.
+  $('btn-ifc').addEventListener('click', exportIfc);
+  if (renderer && window.claude && window.claude.use) {
+    window.claude.use('downloads').then(ns => { if (ns) { downloads = ns; $('export').hidden = false; } }, () => {});
+  } else if (renderer) {
+    $('export').hidden = false;
+  }
+  $('btn-reset').addEventListener('click', () => {
+    Object.assign(P, DEFAULTS);
+    syncInputs(); update();
+    if (renderer) setView('3d');
+  });
+}
+
+window.wenteltrap = { ifc: buildIfc, zip: zipStore };
+
+const hot = window.claude && window.claude.hot;
+if (hot && hot.snapshot) hot.snapshot(() => ({ v: STATE_V, P, view }));
+if (hot && hot.ready) hot.ready(start); else start((hot && hot.data) || {});
+})();
+</script>
+</body>
+</html>

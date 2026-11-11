@@ -37,9 +37,22 @@ gebruiksfuncties of een trap die uitsluitend voor ontvluchten dient.
 De grenswaarden zijn overgenomen uit samenvattingen van de tabel, niet uit de officiele tekst.
 Controleer ze op wetten.overheid.nl voordat je erop toetst.
 
+## Belasting
+
+Op het tabblad Belasting rekent de knop "Belasting berekenen" de krachten uit die de trap afgeeft aan de
+voetplaten op de vloer beneden, de handjes op de kanaalplaatvloer boven en elke koppeling aan de kolom.
+De uitkomst wordt alleen bijgewerkt als je op de knop drukt; na een wijziging van de invoer staat ze als
+verouderd gemarkeerd.
+
+- Rekenmodel: lineair ruimtelijk raamwerk met de bomen, treden, kokers en kolom als staven.
+- Voetplaten en handjes liggen 70 mm onder het vloerpeil en zijn scharnierend; de kokers zitten star aan
+  de kolom en aan de binnenboom.
+- Belasting: eigen gewicht en een veranderlijke belasting in kN/m2 op alle treden, in te vullen naar de
+  gebruiksklasse. De uitkomsten zijn karakteristiek, zonder belastingfactoren.
+
 ## Beperkingen
 
-- De generator toetst alleen afmetingen. Sterkte en stijfheid van de trap, de koppelingen en de leuning
-  worden niet berekend.
+- De belastingberekening is indicatief en vervangt de berekening van de constructeur niet. Sterkte en
+  stijfheid van de onderdelen, de puntlast op een trede en de belasting op de leuning worden niet getoetst.
 - De IFC-geometrie bestaat uit driehoeksvlakken. Het bestand is bedoeld voor coordinatie en visuele
   controle, niet als productiemodel.

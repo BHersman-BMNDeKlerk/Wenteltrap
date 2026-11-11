@@ -152,7 +152,35 @@ body {
   font-family: var(--font-display); font-weight: 600; font-size: 13px;
   text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); margin: 0;
 }
+.control .tabs { display: inline-flex; margin-bottom: 12px; }
 .control .seg { flex: none; }
+.qfield { display: flex; align-items: baseline; gap: 6px; font-size: 13px; }
+.qfield input {
+  width: 62px; text-align: right; padding: 3px 6px; font-family: var(--font-data); font-size: 13px;
+  color: var(--ink); background: var(--field); border: 1px solid var(--line); border-radius: 3px;
+}
+.qfield span { font-family: var(--font-data); font-size: 11px; color: var(--muted); }
+.control .primary {
+  border: 1px solid var(--accent); border-radius: 4px; background: var(--accent); color: var(--accent-ink);
+  font: 600 13px var(--font-body); padding: 6px 14px; cursor: pointer;
+}
+.tablewrap { overflow-x: auto; }
+.tablewrap table { border-collapse: collapse; width: 100%; min-width: 620px; font-size: 13px; }
+.tablewrap th, .tablewrap td { padding: 4px 10px 4px 0; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.tablewrap th:first-child { text-align: left; font-weight: 400; }
+.tablewrap thead th { font-size: 12px; font-weight: 500; color: var(--muted); vertical-align: bottom; }
+.tablewrap thead small { display: block; font-family: var(--font-data); font-size: 11px; font-weight: 400; }
+.tablewrap td { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+.tablewrap td.tot { font-weight: 500; }
+.tablewrap tr.grp th {
+  padding-top: 10px; font-family: var(--font-display); font-weight: 600; font-size: 12px;
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted);
+}
+.tablewrap tr.sum th, .tablewrap tr.sum td { color: var(--muted); }
+#load-out { display: grid; gap: 10px; }
+.control { max-height: 66vh; overflow-y: auto; }
+#load-out.stale .tablewrap { opacity: 0.45; }
+#load-out .note { max-width: 110ch; }
 .control .seg button { padding: 4px 10px; font-size: 12.5px; white-space: nowrap; }
 .control header p { margin: 0; font-size: 12px; color: var(--muted); }
 .cells { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 18px; margin: 0; }
@@ -181,7 +209,7 @@ body {
     padding-right: max(16px, env(safe-area-inset-right, 0px));
   }
   .viewer { height: 420px; max-height: 62vh; }
-  .control { padding-left: max(16px, env(safe-area-inset-left, 0px)); }
+  .control { padding-left: max(16px, env(safe-area-inset-left, 0px)); max-height: none; }
   .cells { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 </style>
@@ -274,17 +302,46 @@ body {
       <p class="hint" id="hint">Slepen draait · scrollen of knijpen zoomt · rechtermuisknop verschuift</p>
     </div>
 
-    <section class="control" aria-label="Controle">
-      <header>
-        <h2 id="lbl-use">Controle</h2>
-        <div class="seg" role="group" aria-labelledby="lbl-use" data-key="use">
-          <button type="button" id="use-woon" data-val="woon">Woning</button>
-          <button type="button" id="use-overig" data-val="overig">Overig</button>
-          <button type="button" id="use-vlucht" data-val="vlucht">Vluchttrap</button>
+    <section class="control" aria-label="Controle en belasting">
+      <div class="seg tabs" role="group" aria-label="Onderdeel" data-key="tab">
+        <button type="button" id="tab-btn-dims" data-val="dims">Afmetingen</button>
+        <button type="button" id="tab-btn-loads" data-val="loads">Belasting</button>
+      </div>
+      <div id="tab-dims">
+        <header>
+          <h2 id="lbl-use">Controle</h2>
+          <div class="seg" role="group" aria-labelledby="lbl-use" data-key="use">
+            <button type="button" id="use-woon" data-val="woon">Woning</button>
+            <button type="button" id="use-overig" data-val="overig">Overig</button>
+            <button type="button" id="use-vlucht" data-val="vlucht">Vluchttrap</button>
+          </div>
+          <p id="norm-note"></p>
+        </header>
+        <dl class="cells" id="cells"></dl>
+      </div>
+      <div id="tab-loads" hidden>
+        <header>
+          <h2>Belasting</h2>
+          <label class="qfield" for="q-load">Veranderlijke belasting
+            <input type="number" id="q-load" value="3" min="0" max="10" step="0.5" inputmode="decimal"> <span>kN/m²</span>
+          </label>
+          <button type="button" id="btn-loads" class="primary">Belasting berekenen</button>
+          <p id="load-status" role="status">Nog niet berekend. De uitkomst wordt alleen bijgewerkt als je op de knop drukt.</p>
+        </header>
+        <div id="load-out" hidden>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr><th scope="col">Steunpunt</th><th scope="col">V eigen gewicht<small>kN</small></th><th scope="col">V veranderlijk<small>kN</small></th>
+                  <th scope="col">V totaal<small>kN</small></th><th scope="col">H totaal<small>kN</small></th>
+                  <th scope="col">Axiaal koker<small>kN</small></th><th scope="col">M op kolom<small>kNm</small></th></tr>
+              </thead>
+              <tbody id="load-body"></tbody>
+            </table>
+          </div>
+          <p class="note" id="load-note"></p>
         </div>
-        <p id="norm-note"></p>
-      </header>
-      <dl class="cells" id="cells"></dl>
+      </div>
     </section>
   </main>
 </div>
@@ -300,6 +357,8 @@ const WT = 10;          // plaatdikte van de bomen (mm)
 const PLATE = 16;       // plaat boven de kolom (mm)
 const HOEK = 12;        // hoeklijn onder de vloer (mm)
 const HEA = { h: 152, b: 160, tw: 6, tf: 9 }; // HEA160
+const SUP_DROP = 70;     // voetplaten en handjes liggen 70 mm onder het vloerpeil (dikte dekvloer)
+const BASE_T = 15;       // dikte voetplaat onder een boom (mm)
 const CARRIER = 3;      // plaatdikte van de tredendragers (mm)
 const TUBE = 42.4;      // handregel, buis (mm)
 const STATE_V = 6;      // versie van de uitgangspunten; oudere bewaarde waarden vervallen
@@ -316,7 +375,7 @@ const P = {
   use: 'vlucht',
 };
 const DEFAULTS = { ...P };
-let view = '3d';
+let view = '3d', tab = 'dims';
 
 // Grenswaarden uit Bbl tabel 4.26 (nieuwbouw), in mm. Breedte, afstand van de klimlijn tot de zijkant
 // en de maximale traphoogte zijn in alle kolommen gelijk.
@@ -405,6 +464,11 @@ function buildFields() {
       const b = e.target.closest('button'); if (!b) return;
       const key = seg.dataset.key;
       if (key === 'view') { setView(b.dataset.val); return; }
+      if (key === 'tab') {
+        tab = b.dataset.val;
+        $('tab-dims').hidden = tab !== 'dims'; $('tab-loads').hidden = tab !== 'loads';
+        syncInputs(); return;
+      }
       P[key] = key === 'dir' || key === 'tieN' ? +b.dataset.val : b.dataset.val;
       if (key === 'tieN') spreadTies();
       syncInputs(); schedule();
@@ -422,7 +486,7 @@ function syncInputs() {
     $('r-' + f.k).value = P[f.k];
   }
   document.querySelectorAll('.seg').forEach(seg => {
-    const cur = seg.dataset.key === 'view' ? view : String(P[seg.dataset.key]);
+    const key = seg.dataset.key, cur = key === 'view' ? view : key === 'tab' ? tab : String(P[key]);
     seg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.val === cur)));
   });
   document.querySelectorAll('.checks-list input').forEach(c => { c.checked = !!P[c.dataset.key]; });
@@ -636,6 +700,35 @@ function part(cls, name, ptype, objType, inStair = true) {
 }
 const nr = i => String(i).padStart(2, '0');
 
+// Boven- en onderrand van een boom als functie van de hoek. De plaathoogte ligt gecentreerd om trede plus
+// optrede; onderaan loopt de boom door tot op de voetplaat onder de dekvloer, bovenaan tot het vloerpeil.
+function boomLines(d, hgt) {
+  const off = (hgt - d.h - d.t) / 2;
+  return {
+    top: f => Math.min(d.H, d.yN(f) + off),
+    bot: f => Math.max(BASE_T - SUP_DROP, d.yN(f) + off - hgt),
+  };
+}
+
+// Plaats van elke koppeling: de ingestelde hoogte bepaalt waar ze de oplopende binnenboom raakt.
+// Ze zit in de zone onder de balustervoeten. Geeft per koppeling de hoek f, de hoogte y en de plaathoogte.
+function tieLayout(d) {
+  if (!P.column || !P.ties || d.spil) return [];
+  const bIn = boomLines(d, P.boomIn);
+  const zone = f => { const lo = bIn.bot(f); return [lo, Math.max(lo + 60, bIn.top(f) - 120)]; };
+  const mid = f => { const [lo, hi] = zone(f); return (lo + hi) / 2; };
+  const e = 110 / d.rIn, fA = Math.min(e, d.sweep / 2), fB = Math.max(d.sweep - e, d.sweep / 2);
+  const out = [];
+  for (let i = 1; i <= P.tieN; i++) {
+    const y = Math.min(Math.max(P['tie' + i], mid(fA)), mid(fB), d.colTop - 50);
+    let a = fA, b = fB;
+    for (let n = 0; n < 40; n++) { const m = (a + b) / 2; if (mid(m) < y) a = m; else b = m; }
+    const f = (a + b) / 2, [lo, hi] = zone(f);
+    out.push({ i, f, y, ph: Math.min(160, hi - lo) });
+  }
+  return out;
+}
+
 function add(geom, mat, shadow = true) {
   const m = new THREE.Mesh(geom, mat);
   m.userData.part = curPart;
@@ -665,7 +758,7 @@ function buildModel(d) {
     part('IfcPlate', 'Tredendrager ' + nr(i), 'SHEET');
     add(B.sector(d.rIn, d.rOut, f0, f1, () => under - CARRIER, () => under), mats.steel);
     slat(f0, d.rIn, d.rOut, under - 28, under - CARRIER, 0, CARRIER, mats.steel);
-    slat(f1, d.rIn, d.rOut, under - 28, under - CARRIER, -CARRIER, 0, mats.steel);
+    if (i < d.nT) slat(f1, d.rIn, d.rOut, under - 28, under - CARRIER, -CARRIER, 0, mats.steel);
     // Antislip: één strook zwart rubber achter de neus
     part('IfcCovering', 'Antislip ' + nr(i), 'USERDEFINED', 'Antislipstrook');
     if (stripIn < d.rOut - 40) slat(f0, stripIn, d.rOut - 40, top - 2, top + 2, 30, 50, mats.rubber);
@@ -688,11 +781,7 @@ function buildModel(d) {
 
   // Bomen van gewalste plaat: de plaathoogte ligt gecentreerd om trede plus optrede,
   // afgesneden op de vloer en op de verdieping
-  const boom = hgt => {
-    const off = (hgt - d.h - d.t) / 2;
-    return { top: f => Math.min(d.H, d.yN(f) + off), bot: f => Math.max(0, d.yN(f) + off - hgt) };
-  };
-  const bOut = boom(P.boomOut), bIn = boom(P.boomIn);
+  const bOut = boomLines(d, P.boomOut), bIn = boomLines(d, P.boomIn);
   part('IfcMember', 'Buitenboom', 'STRINGER');
   add(B.sector(d.rOut, d.rOut + WT, 0, d.sweep, bOut.bot, bOut.top), mats.steel);
   if (d.spil) {
@@ -702,6 +791,26 @@ function buildModel(d) {
   } else {
     part('IfcMember', 'Binnenboom', 'STRINGER');
     add(B.sector(d.rIn - WT, d.rIn, 0, d.sweep, bIn.bot, bIn.top), mats.steel);
+  }
+
+  // Voetplaten onder de bomen, op de constructievloer onder de dekvloer
+  const foot = (r, name) => {
+    part('IfcPlate', name, 'SHEET');
+    slat(0, r - 75, r + 75, -SUP_DROP, BASE_T - SUP_DROP, -30, 120, mats.steel);
+  };
+  foot(d.rOut + WT / 2, 'Voetplaat buitenboom');
+  if (!d.spil) foot(d.rIn - WT / 2, 'Voetplaat binnenboom');
+
+  // Bovenaan: eindplaat tussen de bomen, die op twee handjes op de kanaalplaatvloer aansluit
+  if (!d.spil) {
+    const lvl = d.H - SUP_DROP;
+    part('IfcPlate', 'Eindplaat tussen bomen', 'SHEET');
+    slat(d.sweep, d.rIn, d.rOut, d.H - 285, d.H - 85, -20, -10, mats.steel);
+    [[d.rIn + 60, 'binnenboom'], [d.rOut - 160, 'buitenboom']].forEach(([r, side]) => {
+      part('IfcMember', 'Handje bij ' + side, 'MEMBER');
+      slat(d.sweep, r, r + 100, lvl, lvl + 10, 0, 100, mats.steel);
+      slat(d.sweep, r, r + 100, lvl - 110, lvl + 10, -10, 0, mats.steel);
+    });
   }
 
   // Leuning: handregel buis 42,4 op balusters plat 60x12, één per optrede, tegen de zijkant van de boom
@@ -755,29 +864,18 @@ function buildModel(d) {
     slat(d.sweep, 0, 150, y1, y1 + HOEK, 0, d.rOut + 900, mats.steel);
     slat(d.sweep, -HOEK, 0, y1, y1 + 150, 0, d.rOut + 900, mats.steel);
 
-    // Koppelingen: koker 100/100 van de kolom naar de binnenboom, met een plaat op de boom.
-    // De ingestelde hoogte bepaalt waar de koppeling de oplopende boom raakt; ze zit in de zone
-    // onder de balustervoeten.
-    if (P.ties && !d.spil) {
-      const zone = f => { const lo = bIn.bot(f); return [lo, Math.max(lo + 60, bIn.top(f) - 120)]; };
-      const mid = f => { const [lo, hi] = zone(f); return (lo + hi) / 2; };
-      const e = 110 / d.rIn, fA = Math.min(e, d.sweep / 2), fB = Math.max(d.sweep - e, d.sweep / 2);
-      for (let i = 1; i <= P.tieN; i++) {
-        const y = Math.min(Math.max(P['tie' + i], mid(fA)), mid(fB), topY - 50);
-        let a = fA, b = fB;
-        for (let n = 0; n < 40; n++) { const m = (a + b) / 2; if (mid(m) < y) a = m; else b = m; }
-        const f = (a + b) / 2, [lo, hi] = zone(f), ph = Math.min(160, hi - lo);
-        const p = B.pt(d.rIn - WT / 2, f, y);
-        const dx = p.x - c.x, dz = p.z - c.z;
-        part('IfcMember', 'Koppeling ' + i, 'STRUT');
-        const strut = add(new THREE.BoxGeometry(Math.hypot(dx, dz), Math.min(100, ph), 100), mats.steel);
-        strut.position.set((p.x + c.x) / 2, y, (p.z + c.z) / 2);
-        strut.rotation.y = Math.atan2(-dz, dx);
-        part('IfcPlate', 'Koppelplaat ' + i, 'SHEET');
-        const pl = add(new THREE.BoxGeometry(14, ph, 200), mats.steel);
-        pl.position.copy(B.pt(d.rIn - WT - 7, f, y));
-        pl.rotation.y = Math.PI / 2 - B.ang(f);
-      }
+    // Koppelingen: koker 100/100 van de kolom naar de binnenboom, met een plaat op de boom
+    for (const tie of tieLayout(d)) {
+      const p = B.pt(d.rIn - WT / 2, tie.f, tie.y);
+      const dx = p.x - c.x, dz = p.z - c.z;
+      part('IfcMember', 'Koppeling ' + tie.i, 'STRUT');
+      const strut = add(new THREE.BoxGeometry(Math.hypot(dx, dz), Math.min(100, tie.ph), 100), mats.steel);
+      strut.position.set((p.x + c.x) / 2, tie.y, (p.z + c.z) / 2);
+      strut.rotation.y = Math.atan2(-dz, dx);
+      part('IfcPlate', 'Koppelplaat ' + tie.i, 'SHEET');
+      const pl = add(new THREE.BoxGeometry(14, tie.ph, 200), mats.steel);
+      pl.position.copy(B.pt(d.rIn - WT - 7, tie.f, tie.y));
+      pl.rotation.y = Math.PI / 2 - B.ang(tie.f);
     }
   }
 
@@ -830,9 +928,291 @@ function update() {
   const d = derive();
   $('col-note').textContent = `Bovenkant kolom op ${nl(d.colTop)} mm. Daarboven: plaat ${PLATE}, HEA160 liggend (${HEA.h}), hoeklijn ${HOEK} en de vloeropbouw.`;
   renderChecks(d);
+  flagLoads();
   if (renderer) { buildModel(d); render(); }
 }
 function schedule() { if (!queued) { queued = true; requestAnimationFrame(update); } }
+
+/* ------------------------------------------------------------------ belasting */
+const STEEL = { E: 210000, G: 80770, g: 78.5e-6 };  // N/mm2, N/mm2, N/mm3
+const OAK = { E: 11000, G: 700, g: 7.5e-6 };
+const RAIL_W = 0.025;                               // handregel buis 42,4 x 2,6: N per mm
+const TIE_SEC = { A: 1900, I: 2.866e6, J: 4.29e6 }; // koker 100x100x5
+const COL_SEC = { A: 9600, I: 9.23e7, J: 1.38e8 };  // koker 250x250x10
+
+// Lineair ruimtelijk raamwerk. Elke knoop heeft zes vrijheidsgraden (ux, uy, uz, rx, ry, rz); elke staaf
+// draagt normaalkracht, buiging om twee assen en wringing. 'ref' wijst de lokale z-as van de doorsnede aan.
+// Geeft per belastinggeval de verplaatsingen, de oplegreacties en de staafkrachten.
+function frameSolve(nodes, els, fixed, loads) {
+  const n = nodes.length * 6, K = new Float64Array(n * n);
+  for (const el of els) {
+    const a = nodes[el.i], b = nodes[el.j];
+    const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2], L = Math.hypot(dx, dy, dz);
+    const ex = [dx / L, dy / L, dz / L];
+    const dot = el.ref[0] * ex[0] + el.ref[1] * ex[1] + el.ref[2] * ex[2];
+    let ez = [el.ref[0] - dot * ex[0], el.ref[1] - dot * ex[1], el.ref[2] - dot * ex[2]];
+    const lz = Math.hypot(ez[0], ez[1], ez[2]);
+    ez = [ez[0] / lz, ez[1] / lz, ez[2] / lz];
+    const ey = [ez[1] * ex[2] - ez[2] * ex[1], ez[2] * ex[0] - ez[0] * ex[2], ez[0] * ex[1] - ez[1] * ex[0]];
+    const R = [ex, ey, ez];
+    const k = new Float64Array(144), set = (r, c, v) => { k[r * 12 + c] = v; k[c * 12 + r] = v; };
+    const EA = el.E * el.A / L, GJ = el.G * el.J / L;
+    set(0, 0, EA); set(0, 6, -EA); set(6, 6, EA);
+    set(3, 3, GJ); set(3, 9, -GJ); set(9, 9, GJ);
+    let EI = el.E * el.Iz, b3 = 12 * EI / L ** 3, c2 = 6 * EI / L ** 2, d4 = 4 * EI / L, e2 = 2 * EI / L;
+    set(1, 1, b3); set(1, 5, c2); set(1, 7, -b3); set(1, 11, c2); set(5, 5, d4);
+    set(5, 7, -c2); set(5, 11, e2); set(7, 7, b3); set(7, 11, -c2); set(11, 11, d4);
+    EI = el.E * el.Iy; b3 = 12 * EI / L ** 3; c2 = 6 * EI / L ** 2; d4 = 4 * EI / L; e2 = 2 * EI / L;
+    set(2, 2, b3); set(2, 4, -c2); set(2, 8, -b3); set(2, 10, -c2); set(4, 4, d4);
+    set(4, 8, c2); set(4, 10, e2); set(8, 8, b3); set(8, 10, c2); set(10, 10, d4);
+    // Naar het globale assenstelsel: per blok van 3x3 is kg = R' k R
+    const kg = new Float64Array(144);
+    for (let p = 0; p < 4; p++) for (let q = 0; q < 4; q++) {
+      for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) {
+        let v = 0;
+        for (let m = 0; m < 3; m++) for (let o = 0; o < 3; o++) v += R[m][r] * k[(3 * p + m) * 12 + 3 * q + o] * R[o][c];
+        kg[(3 * p + r) * 12 + 3 * q + c] = v;
+      }
+    }
+    el.kg = kg;
+    el.dof = [];
+    for (let m = 0; m < 6; m++) el.dof.push(el.i * 6 + m);
+    for (let m = 0; m < 6; m++) el.dof.push(el.j * 6 + m);
+    for (let r = 0; r < 12; r++) for (let c = 0; c < 12; c++) K[el.dof[r] * n + el.dof[c]] += kg[r * 12 + c];
+  }
+
+  const free = [];
+  for (let i = 0; i < n; i++) if (!fixed.has(i)) free.push(i);
+  const nf = free.length, m = loads.length;
+  const A = new Float64Array(nf * nf), Bm = new Float64Array(nf * m);
+  for (let r = 0; r < nf; r++) {
+    for (let c = 0; c < nf; c++) A[r * nf + c] = K[free[r] * n + free[c]];
+    for (let q = 0; q < m; q++) Bm[r * m + q] = loads[q][free[r]];
+  }
+  // Gauss-eliminatie met rijverwisseling
+  for (let c = 0; c < nf; c++) {
+    let piv = c, max = Math.abs(A[c * nf + c]);
+    for (let r = c + 1; r < nf; r++) { const v = Math.abs(A[r * nf + c]); if (v > max) { max = v; piv = r; } }
+    if (max < 1e-9) throw new Error('Het model is niet stabiel ondersteund.');
+    if (piv !== c) {
+      for (let q = c; q < nf; q++) { const t = A[c * nf + q]; A[c * nf + q] = A[piv * nf + q]; A[piv * nf + q] = t; }
+      for (let q = 0; q < m; q++) { const t = Bm[c * m + q]; Bm[c * m + q] = Bm[piv * m + q]; Bm[piv * m + q] = t; }
+    }
+    const d = A[c * nf + c];
+    for (let r = c + 1; r < nf; r++) {
+      const f = A[r * nf + c] / d;
+      if (f === 0) continue;
+      for (let q = c; q < nf; q++) A[r * nf + q] -= f * A[c * nf + q];
+      for (let q = 0; q < m; q++) Bm[r * m + q] -= f * Bm[c * m + q];
+    }
+  }
+  const U = [], Rx = [];
+  for (let q = 0; q < m; q++) {
+    const u = new Float64Array(n);
+    for (let r = nf - 1; r >= 0; r--) {
+      let v = Bm[r * m + q];
+      for (let c = r + 1; c < nf; c++) v -= A[r * nf + c] * u[free[c]];
+      u[free[r]] = v / A[r * nf + r];
+    }
+    const react = new Float64Array(n);
+    for (const i of fixed) {
+      let v = -loads[q][i];
+      for (let c = 0; c < n; c++) v += K[i * n + c] * u[c];
+      react[i] = v;
+    }
+    U.push(u); Rx.push(react);
+  }
+  // Kracht die de knoop aan het begin van een staaf op die staaf uitoefent, globaal: [Fx, Fy, Fz, Mx, My, Mz]
+  const endForce = (el, q) => {
+    const out = [0, 0, 0, 0, 0, 0];
+    for (let r = 0; r < 6; r++) for (let c = 0; c < 12; c++) out[r] += el.kg[r * 12 + c] * U[q][el.dof[c]];
+    return out;
+  };
+  return { U, R: Rx, endForce };
+}
+
+// Bouwt het rekenmodel van de trap en geeft de reacties op de vloeren en de koppelingen.
+// q = veranderlijke belasting in kN/m2. Alle uitkomsten zijn karakteristiek, zonder belastingfactoren.
+function computeLoads(q) {
+  const d = derive();
+  if (d.spil) return null;
+  const B = makeBuilder(d);
+  const nodes = [], els = [], fixed = new Set(), FG = [], FQ = [];
+  const raw = (x, y, z) => { nodes.push([x, y, z]); FG.push(0); FQ.push(0); return nodes.length - 1; };
+  const node = (r, f, y) => { const p = B.pt(r, f, y); return raw(p.x, p.y, p.z); };
+  const pin = i => { fixed.add(i * 6); fixed.add(i * 6 + 1); fixed.add(i * 6 + 2); };
+  const steel = sec => ({ E: STEEL.E, G: STEEL.G, ...sec });
+  const ties = tieLayout(d);
+
+  // Een boom: plaat op zijn kant langs de schroeflijn. De doorsnede haaks op de boom is de verticale
+  // hoogte maal de cosinus van de hellingshoek.
+  const stringer = (r, hgt, extra, rail) => {
+    const bm = boomLines(d, hgt);
+    const dep = hgt * Math.cos(Math.atan2(d.h, r * d.dA));
+    const sec = steel({ A: dep * WT, Iz: WT * dep ** 3 / 12, Iy: dep * WT ** 3 / 12, J: dep * WT ** 3 / 3 });
+    const fs = [];
+    for (let j = 0; j <= 2 * d.nT; j++) fs.push(j * d.dA / 2);
+    for (const f of extra) if (fs.every(g => Math.abs(g - f) > 1e-3)) fs.push(f);
+    fs.sort((a, b) => a - b);
+    const last = fs.length - 1;
+    const ids = fs.map((f, k) => node(r, f, k === 0 ? -SUP_DROP : k === last ? d.H - SUP_DROP : (bm.bot(f) + bm.top(f)) / 2));
+    const lens = [];
+    for (let k = 0; k < last; k++) {
+      const a = nodes[ids[k]], b = nodes[ids[k + 1]], u = B.radial((fs[k] + fs[k + 1]) / 2);
+      els.push({ i: ids[k], j: ids[k + 1], ...sec, ref: [u.x, u.y, u.z] });
+      lens.push(Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]));
+    }
+    const len = lens.reduce((a, b) => a + b, 0);
+    const railW = rail ? RAIL_W * len + (d.nT + 1) * 60 * 12 * (d.rail + 100) * STEEL.g : 0;
+    const w = sec.A * STEEL.g + railW / len;   // N per mm boom
+    lens.forEach((L, k) => { FG[ids[k]] += w * L / 2; FG[ids[k + 1]] += w * L / 2; });
+    pin(ids[0]); pin(ids[last]);
+    const at = f => ids[fs.reduce((best, g, k) => (Math.abs(g - f) < Math.abs(fs[best] - f) ? k : best), 0)];
+    return { ids, at, depth: dep };
+  };
+  const rI = d.rIn - WT / 2, rO = d.rOut + WT / 2;
+  const inner = stringer(rI, P.boomIn, ties.map(t => t.f), P.railIn);
+  const outer = stringer(rO, P.boomOut, [], P.railOut);
+
+  // Treden: eiken op de stalen tredendrager, als staaf tussen de bomen. Het gewicht en de veranderlijke
+  // belasting gaan naar de twee bomen volgens de ligging van het zwaartepunt van de trede.
+  const bw = (d.rIn + d.rOut) / 2 * d.dA, A1 = bw * CARRIER, A2 = 2 * CARRIER * 25;
+  const yc = (A1 * 1.5 + A2 * 15.5) / (A1 + A2);
+  const Icar = bw * CARRIER ** 3 / 12 + A1 * (yc - 1.5) ** 2 + 2 * CARRIER * 25 ** 3 / 12 + A2 * (yc - 15.5) ** 2;
+  const tread = {
+    E: STEEL.E, G: STEEL.G,
+    A: A1 + A2 + OAK.E / STEEL.E * bw * d.t,
+    Iy: Icar + OAK.E / STEEL.E * bw * d.t ** 3 / 12,               // buiging verticaal
+    Iz: CARRIER * bw ** 3 / 12 + OAK.E / STEEL.E * d.t * bw ** 3 / 12, // buiging horizontaal
+    J: (bw + 50) * CARRIER ** 3 / 3 + OAK.G / STEEL.G * 0.29 * bw * d.t ** 3,
+    ref: [0, 1, 0],
+  };
+  const area = 0.5 * (d.rOut ** 2 - d.rIn ** 2) * d.dA;
+  const rc = 2 / 3 * (d.rOut ** 3 - d.rIn ** 3) / (d.rOut ** 2 - d.rIn ** 2);
+  const share = (rc - rI) / (rO - rI);
+  const wG = area * (d.t * OAK.g + CARRIER * STEEL.g) + 2 * (d.rOut - d.rIn) * 25 * CARRIER * STEEL.g;
+  const wQ = area * q * 1e-3;
+  for (let i = 1; i <= d.nT; i++) {
+    const f = (i - 0.5) * d.dA, ni = inner.at(f), no = outer.at(f);
+    els.push({ i: ni, j: no, ...tread });
+    FG[no] += wG * share; FG[ni] += wG * (1 - share);
+    FQ[no] += wQ * share; FQ[ni] += wQ * (1 - share);
+  }
+
+  // Kolom met koppelingen. De kolom staat scharnierend op de vloer en wordt bovenaan horizontaal
+  // gehouden door de vloer; de kokers zitten star aan de kolom en aan de binnenboom.
+  const tieEls = [];
+  if (ties.length) {
+    const u = B.radial(d.sweep).multiplyScalar(P.colX).add(B.tangent(d.sweep).multiplyScalar(P.colY));
+    const levels = [...new Set([0, ...ties.map(t => Math.round(t.y * 100) / 100), d.colTop])].sort((a, b) => a - b);
+    const cn = levels.map(y => raw(u.x, y, u.z));
+    const cs = steel({ A: COL_SEC.A, Iy: COL_SEC.I, Iz: COL_SEC.I, J: COL_SEC.J, ref: [1, 0, 0] });
+    for (let k = 0; k < cn.length - 1; k++) els.push({ i: cn[k], j: cn[k + 1], ...cs });
+    pin(cn[0]); fixed.add(cn[0] * 6 + 4);
+    fixed.add(cn[cn.length - 1] * 6); fixed.add(cn[cn.length - 1] * 6 + 2);
+    const rigid = steel({ A: 1e5, Iy: 1e9, Iz: 1e9, J: 1e9, ref: [1, 0, 0] });
+    const ts = steel({ A: TIE_SEC.A, Iy: TIE_SEC.I, Iz: TIE_SEC.I, J: TIE_SEC.J, ref: [0, 1, 0] });
+    for (const t of ties) {
+      const sn = inner.at(t.f), s = nodes[sn];
+      let end = sn;
+      if (Math.abs(s[1] - t.y) > 1) { end = raw(s[0], t.y, s[2]); els.push({ i: sn, j: end, ...rigid }); }
+      const el = { i: cn[levels.indexOf(Math.round(t.y * 100) / 100)], j: end, ...ts };
+      els.push(el); tieEls.push({ tie: t, el });
+    }
+  }
+
+  const vec = F => { const v = new Float64Array(nodes.length * 6); F.forEach((w, i) => { v[i * 6 + 1] = -w; }); return v; };
+  const sol = frameSolve(nodes, els, fixed, [vec(FG), vec(FQ)]);
+  const kN = v => v / 1000;
+
+  const floorRow = (group, name, id) => {
+    const c = q2 => ({ V: kN(sol.R[q2][id * 6 + 1]), Hx: kN(sol.R[q2][id * 6]), Hz: kN(sol.R[q2][id * 6 + 2]) });
+    return { group, name, G: c(0), Q: c(1) };
+  };
+  const rows = [
+    floorRow('onder', 'Voetplaat binnenboom', inner.ids[0]),
+    floorRow('onder', 'Voetplaat buitenboom', outer.ids[0]),
+    floorRow('boven', 'Handje bij binnenboom', inner.ids[inner.ids.length - 1]),
+    floorRow('boven', 'Handje bij buitenboom', outer.ids[outer.ids.length - 1]),
+  ];
+  for (const { tie, el } of tieEls) {
+    const a = nodes[el.i], b = nodes[el.j], L = Math.hypot(b[0] - a[0], b[2] - a[2]);
+    const e = [(b[0] - a[0]) / L, (b[2] - a[2]) / L];
+    const c = q2 => {
+      const f = sol.endForce(el, q2).map(v => -v);          // kracht van de koker op de kolom
+      const N = f[0] * e[0] + f[2] * e[1];                  // + is trek in de koker
+      return { V: kN(-f[1]), Hx: kN(f[0]), Hz: kN(f[2]), N: kN(N), Mx: f[3] / 1e6, Mz: f[5] / 1e6 };
+    };
+    rows.push({ group: 'kolom', name: `Koppeling ${tie.i} op ${nl(tie.y)} mm`, G: c(0), Q: c(1) });
+  }
+  let sag = 0;
+  for (let i = 0; i < nodes.length; i++) sag = Math.max(sag, -(sol.U[0][i * 6 + 1] + sol.U[1][i * 6 + 1]));
+  return {
+    rows, q, sag,
+    WG: kN(FG.reduce((a, b) => a + b, 0)), WQ: kN(FQ.reduce((a, b) => a + b, 0)),
+    depthIn: inner.depth, depthOut: outer.depth,
+  };
+}
+
+let loadSig = null;
+const loadKey = () => JSON.stringify(P) + '|' + $('q-load').value;
+
+function runLoads() {
+  const status = $('load-status'), out = $('load-out');
+  const q = Math.min(10, Math.max(0, parseFloat(String($('q-load').value).replace(',', '.')) || 0));
+  let res = null;
+  try {
+    res = computeLoads(q);
+  } catch (err) {
+    out.hidden = true; loadSig = null;
+    status.textContent = 'De berekening is niet gelukt: ' + err.message;
+    return;
+  }
+  if (!res) {
+    out.hidden = true; loadSig = null;
+    status.textContent = 'De berekening geldt alleen voor de uitvoering met een binnenboom, niet voor de spil.';
+    return;
+  }
+  const f2 = v => nl(Math.abs(v) < 0.005 ? 0 : v, 2);
+  const sum = (a, b) => ({ V: a.V + b.V, Hx: a.Hx + b.Hx, Hz: a.Hz + b.Hz, N: (a.N || 0) + (b.N || 0), Mx: (a.Mx || 0) + (b.Mx || 0), Mz: (a.Mz || 0) + (b.Mz || 0) });
+  const titles = {
+    onder: `Vloer beneden: voetplaten ${SUP_DROP} mm onder het vloerpeil`,
+    boven: `Vloer boven: handjes op de kanaalplaat, ${SUP_DROP} mm onder het vloerpeil`,
+    kolom: 'Kolom: koppelingen',
+  };
+  let html = '', group = null;
+  const tot = { G: 0, Q: 0 };
+  for (const r of res.rows) {
+    if (r.group !== group) { group = r.group; html += `<tr class="grp"><th colspan="7" scope="colgroup">${titles[group]}</th></tr>`; }
+    const t = sum(r.G, r.Q), tie = r.group === 'kolom';
+    tot.G += r.G.V; tot.Q += r.Q.V;
+    html += `<tr><th scope="row">${r.name}</th><td>${f2(r.G.V)}</td><td>${f2(r.Q.V)}</td><td class="tot">${f2(t.V)}</td>` +
+      `<td>${f2(Math.hypot(t.Hx, t.Hz))}</td><td>${tie ? f2(t.N) : ''}</td><td>${tie ? f2(Math.hypot(t.Mx, t.Mz)) : ''}</td></tr>`;
+  }
+  html += `<tr class="sum"><th scope="row">Som verticaal</th><td>${f2(tot.G)}</td><td>${f2(tot.Q)}</td><td class="tot">${f2(tot.G + tot.Q)}</td><td></td><td></td><td></td></tr>` +
+    `<tr class="sum"><th scope="row">Belasting op de trap</th><td>${f2(res.WG)}</td><td>${f2(res.WQ)}</td><td class="tot">${f2(res.WG + res.WQ)}</td><td></td><td></td><td></td></tr>`;
+  $('load-body').innerHTML = html;
+  $('load-note').textContent =
+    `Karakteristieke waarden zonder belastingfactoren, bij q = ${nl(res.q, 1)} kN/m² op alle treden. V is positief als de trap ` +
+    `op het steunpunt drukt, negatief als hij eraan trekt. H is de horizontale kracht, axiaal is positief bij trek in de koker, ` +
+    `M is het buigend moment dat de koker op de kolom zet. Rekenmodel: bomen, treden, kokers en kolom als staven; voetplaten en ` +
+    `handjes scharnierend; kokers star aan kolom en boom. De boom rekent mee met zijn doorsnede haaks op de helling: ` +
+    `binnen ${nl(res.depthIn)} mm, buiten ${nl(res.depthOut)} mm hoog. Grootste zakking in het model: ${nl(res.sag, 1)} mm. ` +
+    `Indicatief, geen vervanging van de berekening van de constructeur.`;
+  out.hidden = false; out.classList.remove('stale');
+  loadSig = loadKey();
+  status.textContent = 'Berekend voor de huidige invoer.';
+}
+
+// De uitkomst wordt niet vanzelf bijgewerkt; na een wijziging blijft ze staan, gemarkeerd als verouderd.
+function flagLoads() {
+  if (!loadSig) return;
+  const stale = loadSig !== loadKey();
+  $('load-out').classList.toggle('stale', stale);
+  $('load-status').textContent = stale
+    ? 'De invoer is gewijzigd na de laatste berekening. Bereken opnieuw.'
+    : 'Berekend voor de huidige invoer.';
+}
 
 /* ------------------------------------------------------------------ IFC-export */
 // Schrijft het model als IFC4 (STEP-tekst): elke benoemde mesh wordt een IfcTriangulatedFaceSet,
@@ -1033,6 +1413,8 @@ function start(saved) {
   } else if (renderer) {
     $('export').hidden = false;
   }
+  $('btn-loads').addEventListener('click', runLoads);
+  $('q-load').addEventListener('input', flagLoads);
   $('btn-reset').addEventListener('click', () => {
     Object.assign(P, DEFAULTS);
     syncInputs(); update();
@@ -1040,7 +1422,7 @@ function start(saved) {
   });
 }
 
-window.wenteltrap = { ifc: buildIfc, zip: zipStore };
+window.wenteltrap = { ifc: buildIfc, zip: zipStore, frame: frameSolve, loads: computeLoads };
 
 const hot = window.claude && window.claude.hot;
 if (hot && hot.snapshot) hot.snapshot(() => ({ v: STATE_V, P, view }));

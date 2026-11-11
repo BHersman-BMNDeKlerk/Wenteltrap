@@ -165,7 +165,8 @@ body {
   font: 600 13px var(--font-body); padding: 6px 14px; cursor: pointer;
 }
 .tablewrap { overflow-x: auto; }
-.tablewrap table { border-collapse: collapse; width: 100%; min-width: 620px; font-size: 13px; }
+.tablewrap table { border-collapse: collapse; width: 100%; min-width: 820px; font-size: 13px; }
+.tablewrap th b { font-family: var(--font-data); font-weight: 500; color: var(--accent); margin-right: 4px; }
 .tablewrap th, .tablewrap td { padding: 4px 10px 4px 0; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
 .tablewrap th:first-child { text-align: left; font-weight: 400; }
 .tablewrap thead th { font-size: 12px; font-weight: 500; color: var(--muted); vertical-align: bottom; }
@@ -178,6 +179,41 @@ body {
 }
 .tablewrap tr.sum th, .tablewrap tr.sum td { color: var(--muted); }
 #load-out { display: grid; gap: 10px; }
+.figs { display: flex; flex-wrap: wrap; gap: 14px 32px; }
+.figs figure { margin: 0; min-width: 0; }
+.figs figcaption {
+  font-family: var(--font-display); font-weight: 600; font-size: 12px; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--muted); margin-bottom: 4px;
+}
+.figs svg { display: block; max-width: 100%; height: auto; overflow: visible; }
+.f-tread { fill: var(--line); opacity: 0.45; stroke: none; }
+.f-thin { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; fill: none; }
+.f-boom { stroke: var(--ink); stroke-width: 1.5; vector-effect: non-scaling-stroke; fill: none; }
+.f-col { fill: var(--muted); stroke: none; }
+.f-tie { stroke: var(--muted); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.f-tie-box { fill: var(--line); stroke: var(--muted); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.f-boom-box { fill: var(--ink); stroke: none; }
+.f-arrow { stroke: var(--ink); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.f-head { fill: var(--ink); stroke: none; }
+.f-push { fill: var(--accent); stroke: var(--panel); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.f-pull { fill: var(--panel); stroke: var(--warn); stroke-width: 2.5; vector-effect: non-scaling-stroke; }
+.f-txt { font-family: var(--font-data); fill: var(--ink); }
+.f-txt.f-mute { fill: var(--muted); }
+.f-id { font-weight: 500; fill: var(--accent); }
+.figs figure:first-child { display: grid; grid-template-columns: 340px auto; column-gap: 20px; align-items: start; }
+.figs figure:first-child figcaption { grid-column: 1 / -1; }
+.keys { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; font-size: 13px; }
+.keys li { display: grid; grid-template-columns: auto auto 1fr; column-gap: 6px; align-items: center; }
+.keys b { font-family: var(--font-data); font-weight: 500; color: var(--accent); }
+.keys li span:last-child { grid-column: 2 / -1; font-family: var(--font-data); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.keys .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.keys .dot.push { background: var(--accent); }
+.keys .dot.pull { border: 2.5px solid var(--warn); }
+.legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.legend .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-left: 8px; }
+.legend .dot.push { background: var(--accent); margin-left: 0; }
+.legend .dot.pull { border: 2.5px solid var(--warn); }
+.legend .arr { margin-left: 8px; color: var(--ink); }
 .control { max-height: 66vh; overflow-y: auto; }
 #load-out.stale .tablewrap { opacity: 0.45; }
 #load-out .note { max-width: 110ch; }
@@ -211,6 +247,7 @@ body {
   .viewer { height: 420px; max-height: 62vh; }
   .control { padding-left: max(16px, env(safe-area-inset-left, 0px)); max-height: none; }
   .cells { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .figs figure:first-child { grid-template-columns: minmax(0, 1fr); }
 }
 </style>
 
@@ -329,12 +366,16 @@ body {
           <p id="load-status" role="status">Nog niet berekend. De uitkomst wordt alleen bijgewerkt als je op de knop drukt.</p>
         </header>
         <div id="load-out" hidden>
+          <div class="figs" id="load-figs"></div>
+          <p class="note legend"><span class="dot push"></span> drukt op het steunpunt <span class="dot pull"></span> trekt aan het steunpunt
+            <span class="arr">→</span> kracht van de trap op het steunpunt; in de plattegrond horizontaal, bij de kolom verticaal</p>
           <div class="tablewrap">
             <table>
               <thead>
                 <tr><th scope="col">Steunpunt</th><th scope="col">V eigen gewicht<small>kN</small></th><th scope="col">V veranderlijk<small>kN</small></th>
                   <th scope="col">V totaal<small>kN</small></th><th scope="col">H totaal<small>kN</small></th>
-                  <th scope="col">Axiaal koker<small>kN</small></th><th scope="col">M op kolom<small>kNm</small></th></tr>
+                  <th scope="col">Axiaal koker<small>kN</small></th><th scope="col">M op plaat<small>kNm</small></th>
+                  <th scope="col">Trek per anker<small>kN</small></th><th scope="col">Afschuiving per anker<small>kN</small></th></tr>
               </thead>
               <tbody id="load-body"></tbody>
             </table>
@@ -359,6 +400,8 @@ const HOEK = 12;        // hoeklijn onder de vloer (mm)
 const HEA = { h: 152, b: 160, tw: 6, tf: 9 }; // HEA160
 const SUP_DROP = 70;     // voetplaten en handjes liggen 70 mm onder het vloerpeil (dikte dekvloer)
 const BASE_T = 15;       // dikte voetplaat onder een boom (mm)
+// Plaat van een koppeling op de kolom: zo breed als de kolom, met links en rechts een anker op halve hoogte
+const CP = { w: 250, h: 200, t: 12, a: 90 }; // a: halve hartafstand van de twee ankers
 const CARRIER = 3;      // plaatdikte van de tredendragers (mm)
 const TUBE = 42.4;      // handregel, buis (mm)
 const STATE_V = 6;      // versie van de uitgangspunten; oudere bewaarde waarden vervallen
@@ -718,13 +761,24 @@ function tieLayout(d) {
   const zone = f => { const lo = bIn.bot(f); return [lo, Math.max(lo + 60, bIn.top(f) - 120)]; };
   const mid = f => { const [lo, hi] = zone(f); return (lo + hi) / 2; };
   const e = 110 / d.rIn, fA = Math.min(e, d.sweep / 2), fB = Math.max(d.sweep - e, d.sweep / 2);
+  const B = makeBuilder(d), u = B.radial(d.sweep), t = B.tangent(d.sweep);
+  const c = u.clone().multiplyScalar(P.colX).add(t.clone().multiplyScalar(P.colY));
   const out = [];
   for (let i = 1; i <= P.tieN; i++) {
     const y = Math.min(Math.max(P['tie' + i], mid(fA)), mid(fB), d.colTop - 50);
     let a = fA, b = fB;
     for (let n = 0; n < 40; n++) { const m = (a + b) / 2; if (mid(m) < y) a = m; else b = m; }
     const f = (a + b) / 2, [lo, hi] = zone(f);
-    out.push({ i, f, y, ph: Math.min(160, hi - lo) });
+    // De plaat ligt vlak op het kolomvlak dat naar het aansluitpunt op de boom wijst; de koker vertrekt
+    // uit het midden van de plaat.
+    const p = B.pt(d.rIn - WT / 2, f, y);
+    const eu = (p.x - c.x) * u.x + (p.z - c.z) * u.z, et = (p.x - c.x) * t.x + (p.z - c.z) * t.z;
+    const n = (Math.abs(eu) >= Math.abs(et) ? u : t).clone().multiplyScalar(Math.abs(eu) >= Math.abs(et) ? Math.sign(eu) : Math.sign(et));
+    const face = c.clone().addScaledVector(n, 125), S = face.clone().addScaledVector(n, CP.t);
+    out.push({
+      i, f, y, ph: Math.min(160, hi - lo),
+      p: [p.x, p.z], c: [c.x, c.z], n: [n.x, n.z], s: [n.z, -n.x], face: [face.x, face.z], S: [S.x, S.z],
+    });
   }
   return out;
 }
@@ -866,12 +920,23 @@ function buildModel(d) {
 
     // Koppelingen: koker 100/100 van de kolom naar de binnenboom, met een plaat op de boom
     for (const tie of tieLayout(d)) {
-      const p = B.pt(d.rIn - WT / 2, tie.f, tie.y);
-      const dx = p.x - c.x, dz = p.z - c.z;
+      const dx = tie.p[0] - tie.S[0], dz = tie.p[1] - tie.S[1];
       part('IfcMember', 'Koppeling ' + tie.i, 'STRUT');
       const strut = add(new THREE.BoxGeometry(Math.hypot(dx, dz), Math.min(100, tie.ph), 100), mats.steel);
-      strut.position.set((p.x + c.x) / 2, tie.y, (p.z + c.z) / 2);
+      strut.position.set((tie.p[0] + tie.S[0]) / 2, tie.y, (tie.p[1] + tie.S[1]) / 2);
       strut.rotation.y = Math.atan2(-dz, dx);
+      // Plaat op de kolom, zo breed als de kolom, met links en rechts een anker
+      part('IfcPlate', 'Kolomplaat koppeling ' + tie.i, 'SHEET');
+      const n = new THREE.Vector3(tie.n[0], 0, tie.n[1]);
+      const cp = add(new THREE.BoxGeometry(CP.w, CP.h, CP.t), mats.steel);
+      cp.position.set(tie.face[0] + tie.n[0] * CP.t / 2, tie.y, tie.face[1] + tie.n[1] * CP.t / 2);
+      cp.rotation.y = Math.atan2(tie.s[1], tie.s[0]) * -1;
+      for (const sa of [-CP.a, CP.a]) {
+        const sb = 0;
+        const bolt = add(new THREE.CylinderGeometry(9, 9, 14, 12), mats.steel);
+        bolt.position.set(tie.face[0] + tie.n[0] * (CP.t + 7) + tie.s[0] * sa, tie.y + sb, tie.face[1] + tie.n[1] * (CP.t + 7) + tie.s[1] * sa);
+        bolt.quaternion.setFromUnitVectors(UP, n);
+      }
       part('IfcPlate', 'Koppelplaat ' + tie.i, 'SHEET');
       const pl = add(new THREE.BoxGeometry(14, tie.ph, 200), mats.steel);
       pl.position.copy(B.pt(d.rIn - WT - 7, tie.f, tie.y));
@@ -1110,13 +1175,17 @@ function computeLoads(q) {
     for (let k = 0; k < cn.length - 1; k++) els.push({ i: cn[k], j: cn[k + 1], ...cs });
     pin(cn[0]); fixed.add(cn[0] * 6 + 4);
     fixed.add(cn[cn.length - 1] * 6); fixed.add(cn[cn.length - 1] * 6 + 2);
-    const rigid = steel({ A: 1e5, Iy: 1e9, Iz: 1e9, J: 1e9, ref: [1, 0, 0] });
+    const stiff = { A: 1e5, Iy: 1e9, Iz: 1e9, J: 1e9 };
+    const rigidV = steel({ ...stiff, ref: [1, 0, 0] }), rigidH = steel({ ...stiff, ref: [0, 1, 0] });
     const ts = steel({ A: TIE_SEC.A, Iy: TIE_SEC.I, Iz: TIE_SEC.I, J: TIE_SEC.J, ref: [0, 1, 0] });
     for (const t of ties) {
       const sn = inner.at(t.f), s = nodes[sn];
       let end = sn;
-      if (Math.abs(s[1] - t.y) > 1) { end = raw(s[0], t.y, s[2]); els.push({ i: sn, j: end, ...rigid }); }
-      const el = { i: cn[levels.indexOf(Math.round(t.y * 100) / 100)], j: end, ...ts };
+      if (Math.abs(s[1] - t.y) > 1) { end = raw(s[0], t.y, s[2]); els.push({ i: sn, j: end, ...rigidV }); }
+      // Van de kolomas star naar het midden van de plaat; daar begint de koker
+      const plate = raw(t.S[0], t.y, t.S[1]);
+      els.push({ i: cn[levels.indexOf(Math.round(t.y * 100) / 100)], j: plate, ...rigidH });
+      const el = { i: plate, j: end, ...ts };
       els.push(el); tieEls.push({ tie: t, el });
     }
   }
@@ -1125,33 +1194,119 @@ function computeLoads(q) {
   const sol = frameSolve(nodes, els, fixed, [vec(FG), vec(FQ)]);
   const kN = v => v / 1000;
 
-  const floorRow = (group, name, id) => {
-    const c = q2 => ({ V: kN(sol.R[q2][id * 6 + 1]), Hx: kN(sol.R[q2][id * 6]), Hz: kN(sol.R[q2][id * 6 + 2]) });
-    return { group, name, G: c(0), Q: c(1) };
+  const floorRow = (group, id, name, node, inner2) => {
+    const c = q2 => ({ V: kN(sol.R[q2][node * 6 + 1]), Hx: kN(sol.R[q2][node * 6]), Hz: kN(sol.R[q2][node * 6 + 2]) });
+    return { group, id, name, G: c(0), Q: c(1), pos: [nodes[node][0], nodes[node][2]], inner: inner2 };
   };
   const rows = [
-    floorRow('onder', 'Voetplaat binnenboom', inner.ids[0]),
-    floorRow('onder', 'Voetplaat buitenboom', outer.ids[0]),
-    floorRow('boven', 'Handje bij binnenboom', inner.ids[inner.ids.length - 1]),
-    floorRow('boven', 'Handje bij buitenboom', outer.ids[outer.ids.length - 1]),
+    floorRow('onder', 'A', 'Voetplaat binnenboom', inner.ids[0], true),
+    floorRow('onder', 'B', 'Voetplaat buitenboom', outer.ids[0], false),
+    floorRow('boven', 'C', 'Handje bij binnenboom', inner.ids[inner.ids.length - 1], true),
+    floorRow('boven', 'D', 'Handje bij buitenboom', outer.ids[outer.ids.length - 1], false),
   ];
   for (const { tie, el } of tieEls) {
     const a = nodes[el.i], b = nodes[el.j], L = Math.hypot(b[0] - a[0], b[2] - a[2]);
-    const e = [(b[0] - a[0]) / L, (b[2] - a[2]) / L];
+    const e = [(b[0] - a[0]) / L, (b[2] - a[2]) / L], n = tie.n, s2 = tie.s;
     const c = q2 => {
-      const f = sol.endForce(el, q2).map(v => -v);          // kracht van de koker op de kolom
-      const N = f[0] * e[0] + f[2] * e[1];                  // + is trek in de koker
-      return { V: kN(-f[1]), Hx: kN(f[0]), Hz: kN(f[2]), N: kN(N), Mx: f[3] / 1e6, Mz: f[5] / 1e6 };
+      const f = sol.endForce(el, q2).map(v => -v);   // kracht en moment van de koker op de plaat, in het midden
+      return {
+        V: kN(-f[1]), Hx: kN(f[0]), Hz: kN(f[2]),
+        N: kN(f[0] * e[0] + f[2] * e[1]),                                  // + is trek in de koker
+        Fn: kN(f[0] * n[0] + f[2] * n[1]), Fs: kN(f[0] * s2[0] + f[2] * s2[1]), Fv: kN(f[1]),
+        Mn: (f[3] * n[0] + f[5] * n[1]) / 1e6, Ms: (f[3] * s2[0] + f[5] * s2[1]) / 1e6, Mv: f[4] / 1e6,
+      };
     };
-    rows.push({ group: 'kolom', name: `Koppeling ${tie.i} op ${nl(tie.y)} mm`, G: c(0), Q: c(1) });
+    rows.push({ group: 'kolom', id: 'K' + tie.i, name: `Koppeling ${tie.i} op ${nl(tie.y)} mm`, G: c(0), Q: c(1), tie });
   }
   let sag = 0;
   for (let i = 0; i < nodes.length; i++) sag = Math.max(sag, -(sol.U[0][i * 6 + 1] + sol.U[1][i * 6 + 1]));
   return {
     rows, q, sag,
     WG: kN(FG.reduce((a, b) => a + b, 0)), WQ: kN(FQ.reduce((a, b) => a + b, 0)),
+    d, ties,
     depthIn: inner.depth, depthOut: outer.depth,
   };
+}
+
+// Krachten in de twee ankers van een kolomplaat, links en rechts op halve hoogte. Invoer in kN en kNm in
+// de assen van de plaat (n haaks op de plaat, s horizontaal, v verticaal).
+// Trek: de normaalkracht over twee ankers, het moment om de verticale as als koppel tussen de ankers, en
+// het moment om de horizontale as als koppel tussen de ankerlijn en de plaatrand die op de kolom drukt
+// (hefboomsarm een halve plaathoogte). Afschuiving: dwarskracht over twee ankers plus het wringend moment
+// als verticaal koppel tussen de ankers.
+function anchorForces(c) {
+  const trek = Math.max(0, c.Fn / 2 + Math.abs(c.Mv) * 1000 / (2 * CP.a) + Math.abs(c.Ms) * 1000 / CP.h);
+  const tw = c.Mn * 1000 / (2 * CP.a);
+  const schuif = Math.max(Math.hypot(c.Fs / 2, c.Fv / 2 + tw), Math.hypot(c.Fs / 2, c.Fv / 2 - tw));
+  return { trek, schuif };
+}
+
+// Schema van de uitkomst: plattegrond met de steunpunten op de vloeren, en de kolom met de koppelingen.
+function loadFigures(res, total) {
+  const d = res.d, B = makeBuilder(d), f1 = v => nl(Math.abs(v) < 0.05 ? 0 : v, 1);
+  const xy = (r, f) => { const q = B.pt(r, f, 0); return [q.x, q.z]; };
+  const pts = a => a.map(q => q[0].toFixed(0) + ',' + q[1].toFixed(0)).join(' ');
+  const arc = r => { const n = Math.max(8, Math.ceil(d.sweep / (5 * DEG))), a = []; for (let j = 0; j <= n; j++) a.push(xy(r, d.sweep * j / n)); return a; };
+
+  // --- plattegrond
+  const ext = d.rOut + 700, u = 2 * ext / 340;            // u = mm per schermpunt
+  const fs = 13 * u, hMax = Math.max(0.01, ...res.rows.filter(r => r.pos).map(r => Math.hypot(total(r).Hx, total(r).Hz)));
+  let keys = '';
+  let g = `<polygon class="f-tread" points="${pts(arc(d.rOut).concat(arc(d.rIn).reverse()))}"/>`;
+  for (let i = 1; i < d.nT; i++) g += `<line class="f-thin" x1="${xy(d.rIn, i * d.dA)[0].toFixed(0)}" y1="${xy(d.rIn, i * d.dA)[1].toFixed(0)}" x2="${xy(d.rOut, i * d.dA)[0].toFixed(0)}" y2="${xy(d.rOut, i * d.dA)[1].toFixed(0)}"/>`;
+  g += `<polyline class="f-boom" points="${pts(arc(d.rOut))}"/><polyline class="f-boom" points="${pts(arc(d.rIn))}"/>`;
+  if (res.ties.length) {
+    const t0 = res.ties[0], c = t0.c, un = B.radial(d.sweep), tn = B.tangent(d.sweep);
+    const corner = (a, b) => [c[0] + 125 * (a * un.x + b * tn.x), c[1] + 125 * (a * un.z + b * tn.z)];
+    g += `<polygon class="f-col" points="${pts([corner(-1, -1), corner(1, -1), corner(1, 1), corner(-1, 1)])}"/>`;
+    for (const t of res.ties) g += `<line class="f-tie" x1="${t.S[0].toFixed(0)}" y1="${t.S[1].toFixed(0)}" x2="${t.p[0].toFixed(0)}" y2="${t.p[1].toFixed(0)}"/>`;
+  }
+  for (const r of res.rows.filter(q => q.pos)) {
+    const t = total(r), [x, y] = r.pos, start = r.group === 'onder';
+    const tg = B.tangent(start ? 0 : d.sweep), rad = B.radial(start ? 0 : d.sweep);
+    const off = [start ? -tg.x : tg.x, start ? -tg.z : tg.z];            // weg van de trap, het vrije veld in
+    const H = Math.hypot(t.Hx, t.Hz);
+    if (H > 0.05) {                                                      // kracht van de trap op het steunpunt
+      const len = (26 + 44 * H / hMax) * u, ex = -t.Hx / H, ey = -t.Hz / H, tx = x + ex * len, ty = y + ey * len, w = 4 * u;
+      g += `<line class="f-arrow" x1="${x.toFixed(0)}" y1="${y.toFixed(0)}" x2="${tx.toFixed(0)}" y2="${ty.toFixed(0)}"/>` +
+        `<polygon class="f-head" points="${pts([[tx + ex * 2.2 * w, ty + ey * 2.2 * w], [tx - ey * w, ty + ex * w], [tx + ey * w, ty - ex * w]])}"/>`;
+    }
+    g += `<circle class="${t.V >= 0 ? 'f-push' : 'f-pull'}" cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="${(5 * u).toFixed(0)}"/>`;
+    // De letter staat aan de kant tegenover de pijl, zodat ze elkaar niet raken
+    const side = H > 0.05 ? [t.Hx / H, t.Hz / H] : off;
+    const lx = x + side[0] * 11 * u, ly = y + side[1] * 11 * u + 0.36 * fs;
+    const anchor = Math.abs(side[0]) < 0.3 ? 'middle' : side[0] < 0 ? 'end' : 'start';
+    g += `<text class="f-txt f-id" font-size="${fs.toFixed(0)}" text-anchor="${anchor}" x="${lx.toFixed(0)}" y="${ly.toFixed(0)}">${r.id}</text>`;
+    keys += `<li><span class="dot ${t.V >= 0 ? 'push' : 'pull'}"></span><b>${r.id}</b> ${r.name}<span>V ${f1(t.V)} · H ${f1(H)} kN</span></li>`;
+  }
+  const plan = `<figure><figcaption>Plattegrond: krachten op de vloeren</figcaption>` +
+    `<svg viewBox="${-ext} ${-ext} ${2 * ext} ${2 * ext}" width="340" height="340" role="img" aria-label="Plattegrond van de trap met de krachten op de steunpunten">${g}</svg><ul class="keys">${keys}</ul></figure>`;
+
+  // --- kolom met koppelingen
+  let elev = '';
+  const tieRows = res.rows.filter(r => r.tie);
+  if (tieRows.length) {
+    const top = d.H + 300, vbW = 3900, vbH = top + 420, u2 = vbH / 400, fs2 = 11.5 * u2, Y = y => (top - y).toFixed(0);
+    let e = `<line class="f-thin" x1="-700" y1="${Y(0)}" x2="${vbW - 800}" y2="${Y(0)}"/><line class="f-thin" x1="-700" y1="${Y(d.H)}" x2="${vbW - 800}" y2="${Y(d.H)}"/>` +
+      `<text class="f-txt f-mute" font-size="${fs2.toFixed(0)}" x="-680" y="${(top + 1.2 * fs2).toFixed(0)}">peil 0</text>` +
+      `<text class="f-txt f-mute" font-size="${fs2.toFixed(0)}" x="-680" y="${(top - d.H - 0.5 * fs2).toFixed(0)}">vloerpeil ${nl(d.H)}</text>` +
+      `<rect class="f-col" x="-125" y="${Y(d.colTop)}" width="250" height="${d.colTop.toFixed(0)}"/>` +
+      `<rect class="f-col" x="-200" y="${Y(d.colTop + PLATE + HEA.h)}" width="900" height="${PLATE + HEA.h}"/>`;
+    for (const r of tieRows) {
+      const t = total(r), an = anchorForces(t), y = r.tie.y, H = Math.hypot(t.Hx, t.Hz), x1 = 125 + CP.t, x2 = x1 + 520;
+      const dir = t.V >= 0 ? 1 : -1, ax = x1 + 260, ay = top - y, len = 16 * u2, w = 4 * u2;
+      e += `<rect class="f-tie-box" x="${x1}" y="${Y(y + 50)}" width="${x2 - x1}" height="100"/>` +
+        `<rect class="f-boom-box" x="125" y="${Y(y + CP.h / 2)}" width="${CP.t}" height="${CP.h}"/>` +
+        `<rect class="f-boom-box" x="${x2}" y="${Y(y + 110)}" width="14" height="220"/>` +
+        `<line class="f-arrow" x1="${ax}" y1="${(ay - dir * (50 + len + 2.2 * w)).toFixed(0)}" x2="${ax}" y2="${(ay - dir * (50 + 2.2 * w)).toFixed(0)}"/>` +
+        `<polygon class="f-head" points="${pts([[ax, ay - dir * 50], [ax - w, ay - dir * (50 + 2.2 * w)], [ax + w, ay - dir * (50 + 2.2 * w)]])}"/>` +
+        `<text class="f-txt" font-size="${fs2.toFixed(0)}" x="${x2 + 150}" y="${(ay - 0.25 * fs2).toFixed(0)}"><tspan class="f-id">${r.id}</tspan> V ${f1(t.V)} · H ${f1(H)} kN` +
+        `<tspan x="${x2 + 150}" dy="${(1.25 * fs2).toFixed(0)}">anker: trek ${f1(an.trek)} · afschuiving ${f1(an.schuif)}</tspan></text>`;
+    }
+    elev = `<figure><figcaption>Kolom: krachten uit de koppelingen</figcaption>` +
+      `<svg viewBox="-800 0 ${vbW} ${vbH}" width="${Math.round(vbW / u2)}" height="400" role="img" aria-label="Aanzicht van de kolom met de krachten uit de koppelingen">${e}</svg></figure>`;
+  }
+  return plan + elev;
 }
 
 let loadSig = null;
@@ -1174,29 +1329,32 @@ function runLoads() {
     return;
   }
   const f2 = v => nl(Math.abs(v) < 0.005 ? 0 : v, 2);
-  const sum = (a, b) => ({ V: a.V + b.V, Hx: a.Hx + b.Hx, Hz: a.Hz + b.Hz, N: (a.N || 0) + (b.N || 0), Mx: (a.Mx || 0) + (b.Mx || 0), Mz: (a.Mz || 0) + (b.Mz || 0) });
+  const total = r => { const o = {}; for (const k of Object.keys(r.G)) o[k] = r.G[k] + r.Q[k]; return o; };
   const titles = {
     onder: `Vloer beneden: voetplaten ${SUP_DROP} mm onder het vloerpeil`,
     boven: `Vloer boven: handjes op de kanaalplaat, ${SUP_DROP} mm onder het vloerpeil`,
-    kolom: 'Kolom: koppelingen',
+    kolom: 'Kolom: koppelingen met een plaat op de kolom en twee ankers',
   };
   let html = '', group = null;
   const tot = { G: 0, Q: 0 };
   for (const r of res.rows) {
-    if (r.group !== group) { group = r.group; html += `<tr class="grp"><th colspan="7" scope="colgroup">${titles[group]}</th></tr>`; }
-    const t = sum(r.G, r.Q), tie = r.group === 'kolom';
+    if (r.group !== group) { group = r.group; html += `<tr class="grp"><th colspan="9" scope="colgroup">${titles[group]}</th></tr>`; }
+    const t = total(r), an = r.tie ? anchorForces(t) : null;
     tot.G += r.G.V; tot.Q += r.Q.V;
-    html += `<tr><th scope="row">${r.name}</th><td>${f2(r.G.V)}</td><td>${f2(r.Q.V)}</td><td class="tot">${f2(t.V)}</td>` +
-      `<td>${f2(Math.hypot(t.Hx, t.Hz))}</td><td>${tie ? f2(t.N) : ''}</td><td>${tie ? f2(Math.hypot(t.Mx, t.Mz)) : ''}</td></tr>`;
+    html += `<tr><th scope="row"><b>${r.id}</b> ${r.name}</th><td>${f2(r.G.V)}</td><td>${f2(r.Q.V)}</td><td class="tot">${f2(t.V)}</td>` +
+      `<td>${f2(Math.hypot(t.Hx, t.Hz))}</td><td>${an ? f2(t.N) : ''}</td><td>${an ? f2(Math.hypot(t.Ms, t.Mv)) : ''}</td>` +
+      `<td>${an ? f2(an.trek) : ''}</td><td>${an ? f2(an.schuif) : ''}</td></tr>`;
   }
-  html += `<tr class="sum"><th scope="row">Som verticaal</th><td>${f2(tot.G)}</td><td>${f2(tot.Q)}</td><td class="tot">${f2(tot.G + tot.Q)}</td><td></td><td></td><td></td></tr>` +
-    `<tr class="sum"><th scope="row">Belasting op de trap</th><td>${f2(res.WG)}</td><td>${f2(res.WQ)}</td><td class="tot">${f2(res.WG + res.WQ)}</td><td></td><td></td><td></td></tr>`;
+  const blank = '<td></td>'.repeat(5);
+  html += `<tr class="sum"><th scope="row">Som verticaal</th><td>${f2(tot.G)}</td><td>${f2(tot.Q)}</td><td class="tot">${f2(tot.G + tot.Q)}</td>${blank}</tr>` +
+    `<tr class="sum"><th scope="row">Belasting op de trap</th><td>${f2(res.WG)}</td><td>${f2(res.WQ)}</td><td class="tot">${f2(res.WG + res.WQ)}</td>${blank}</tr>`;
   $('load-body').innerHTML = html;
+  $('load-figs').innerHTML = loadFigures(res, total);
   $('load-note').textContent =
     `Karakteristieke waarden zonder belastingfactoren, bij q = ${nl(res.q, 1)} kN/m² op alle treden. V is positief als de trap ` +
     `op het steunpunt drukt, negatief als hij eraan trekt. H is de horizontale kracht, axiaal is positief bij trek in de koker, ` +
-    `M is het buigend moment dat de koker op de kolom zet. Rekenmodel: bomen, treden, kokers en kolom als staven; voetplaten en ` +
-    `handjes scharnierend; kokers star aan kolom en boom. De boom rekent mee met zijn doorsnede haaks op de helling: ` +
+    `M is het buigend moment van de koker op de plaat. Elke plaat heeft twee ankers, links en rechts op halve hoogte (hart op hart ${2 * CP.a} mm); de trek per anker bevat ook het koppel tussen de ankerlijn en de plaatrand die op de kolom drukt. Rekenmodel: bomen, treden, kokers en kolom als staven; voetplaten en ` +
+    `handjes scharnierend; kokers star aan de kolomplaat en de boom. De boom rekent mee met zijn doorsnede haaks op de helling: ` +
     `binnen ${nl(res.depthIn)} mm, buiten ${nl(res.depthOut)} mm hoog. Grootste zakking in het model: ${nl(res.sag, 1)} mm. ` +
     `Indicatief, geen vervanging van de berekening van de constructeur.`;
   out.hidden = false; out.classList.remove('stale');

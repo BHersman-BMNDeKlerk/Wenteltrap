@@ -224,8 +224,24 @@ body {
     <section class="group" id="g-kolom">
       <h2>Kolom KK250/10</h2>
       <div class="checks-list one">
-        <label><input type="checkbox" id="o-column" data-key="column"> Kolom 250/10 tot onder de vloer</label>
-        <label><input type="checkbox" id="o-ties" data-key="ties"> Trap op 3 punten aan kolom gekoppeld</label>
+        <label><input type="checkbox" id="o-column" data-key="column"> Kolom met HEA160 en hoeklijn onder de vloer</label>
+      </div>
+      <p class="note" id="col-note"></p>
+    </section>
+
+    <section class="group" id="g-koppel">
+      <h2>Koppeling aan kolom</h2>
+      <div class="checks-list one">
+        <label><input type="checkbox" id="o-ties" data-key="ties"> Trap aan kolom gekoppeld</label>
+      </div>
+      <div class="optrow" id="tie-opts">
+        <span id="lbl-tieN">Aantal koppelingen</span>
+        <div class="seg" role="group" aria-labelledby="lbl-tieN" data-key="tieN">
+          <button type="button" id="tieN-1" data-val="1">1</button>
+          <button type="button" id="tieN-2" data-val="2">2</button>
+          <button type="button" id="tieN-3" data-val="3">3</button>
+          <button type="button" id="tieN-4" data-val="4">4</button>
+        </div>
       </div>
     </section>
 
@@ -281,6 +297,9 @@ body {
 
 const DEG = Math.PI / 180;
 const WT = 10;          // plaatdikte van de bomen (mm)
+const PLATE = 16;       // plaat boven de kolom (mm)
+const HOEK = 12;        // hoeklijn onder de vloer (mm)
+const HEA = { h: 152, b: 160, tw: 6, tf: 9 }; // HEA160
 const CARRIER = 3;      // plaatdikte van de tredendragers (mm)
 const TUBE = 42.4;      // handregel, buis (mm)
 const STATE_V = 6;      // versie van de uitgangspunten; oudere bewaarde waarden vervallen
@@ -292,7 +311,8 @@ const P = {
   dir: 1, core: 'wang',
   loop: 400, t: 54, rail: 1000, boomOut: 300, boomIn: 300,
   risers: false, landing: true, railOut: true, railIn: true, showLoop: true,
-  column: true, ties: true, colX: 171, colY: 158,
+  column: true, ties: true, colX: 171, colY: 158, floorT: 330,
+  tieN: 3, tie1: 760, tie2: 1690, tie3: 2620, tie4: 3000,
   use: 'vlucht',
 };
 const DEFAULTS = { ...P };
@@ -321,6 +341,11 @@ const FIELDS = [
   { k: 'rail',  g: 'g-detail', label: 'Leuninghoogte',              unit: 'mm', min: 800, max: 1200, step: 10 },
   { k: 'colX',  g: 'g-kolom',  label: 'Hart kolom tot hart trap, langs vloerrand', unit: 'mm', min: 125, max: 1000, step: 1 },
   { k: 'colY',  g: 'g-kolom',  label: 'Hart kolom tot hart trap, haaks op vloerrand', unit: 'mm', min: 125, max: 1000, step: 1 },
+  { k: 'floorT', g: 'g-kolom', label: 'Dikte vloeropbouw',          unit: 'mm', min: 100, max: 600,  step: 10 },
+  { k: 'tie1',  g: 'g-koppel', label: 'Koppeling 1, hoogte hart',   unit: 'mm', min: 100, max: 3180, step: 10 },
+  { k: 'tie2',  g: 'g-koppel', label: 'Koppeling 2, hoogte hart',   unit: 'mm', min: 100, max: 3180, step: 10 },
+  { k: 'tie3',  g: 'g-koppel', label: 'Koppeling 3, hoogte hart',   unit: 'mm', min: 100, max: 3180, step: 10 },
+  { k: 'tie4',  g: 'g-koppel', label: 'Koppeling 4, hoogte hart',   unit: 'mm', min: 100, max: 3180, step: 10 },
 ];
 
 /* ------------------------------------------------------------------ afgeleide maten */
@@ -338,6 +363,7 @@ function derive() {
   return {
     rOut, rIn, spil, rTi, rTo, N, nT, h, sweep, dA, rl, going,
     goingIn: rTi * dA,
+    colTop: Math.max(100, P.H - P.floorT - HOEK - HEA.h - PLATE), // bovenkant KK250/10
     width: rTo - rTi,
     formula: 2 * h + going,
     pitch: Math.atan2(h, going) / DEG,
@@ -354,6 +380,7 @@ function buildFields() {
   for (const f of FIELDS) {
     const row = document.createElement('div');
     row.className = 'row';
+    row.id = 'row-' + f.k;
     row.innerHTML =
       `<label for="p-${f.k}">${f.label}</label>` +
       `<span class="num"><input type="number" id="p-${f.k}" min="${f.min}" max="${f.max}" step="${f.step}" inputmode="numeric"><span>${f.unit}</span></span>` +
@@ -378,7 +405,8 @@ function buildFields() {
       const b = e.target.closest('button'); if (!b) return;
       const key = seg.dataset.key;
       if (key === 'view') { setView(b.dataset.val); return; }
-      P[key] = key === 'dir' ? +b.dataset.val : b.dataset.val;
+      P[key] = key === 'dir' || key === 'tieN' ? +b.dataset.val : b.dataset.val;
+      if (key === 'tieN') spreadTies();
       syncInputs(); schedule();
     });
   });
@@ -694,40 +722,58 @@ function buildModel(d) {
   if (P.railIn && !d.spil) railing(d.rIn - WT - 6, bIn, 'binnen');
 
   // Vloer van de verdieping, vanaf de laatste optrede
-  const slab = 200;
   part(null);
-  if (P.landing) slat(d.sweep, 0, d.rOut + 800, d.H - slab, d.H, 0, d.rOut + 900, mats.concrete);
+  if (P.landing) slat(d.sweep, 0, d.rOut + 800, d.H - P.floorT, d.H, 0, d.rOut + 900, mats.concrete);
 
-  // Kolom KK250/10 in het schalmgat, uitgezet vanuit het hart van de trap langs en haaks op de vloerrand
+  // Kolom KK250/10 in het schalmgat, uitgezet vanuit het hart van de trap langs en haaks op de vloerrand.
+  // Opbouw van boven naar beneden: vloeropbouw, hoeklijn, HEA160 liggend langs de vloerrand, plaat, kolom.
   if (P.column) {
     const rot = Math.PI / 2 - B.ang(d.sweep);
     const c = B.radial(d.sweep).multiplyScalar(P.colX).add(B.tangent(d.sweep).multiplyScalar(P.colY));
-    const topY = P.landing ? d.H - slab : d.H;
+    const topY = d.colTop;
     const block = (w, y0, y1) => {
       const m = add(new THREE.BoxGeometry(w, y1 - y0, w), mats.steel);
       m.position.set(c.x, (y0 + y1) / 2, c.z); m.rotation.y = rot;
     };
     part('IfcColumn', 'Kolom KK250/10', 'COLUMN', null, false);
-    block(250, 0, topY - 15);
+    block(250, 0, topY);
     part('IfcPlate', 'Voetplaat kolom', 'SHEET', null, false);
     block(400, 0, 20);
-    part('IfcPlate', 'Kopplaat kolom', 'SHEET', null, false);  // tegen de onderkant van de vloer
-    block(330, topY - 15, topY);
+    part('IfcPlate', 'Plaat boven kolom', 'SHEET', null, false);
+    block(300, topY, topY + PLATE);
 
-    // Drie koppelingen: koker 100/100 van de kolom naar de binnenboom, met een plaat op de boom.
-    // Ze zitten midden tussen twee balusters, in de zone onder de balustervoeten.
+    // HEA160 als randbalk langs de vloerrand, over de kolom
+    const y0 = topY + PLATE, y1 = y0 + HEA.h, rA = P.colX - 150, rB = d.rOut + 800;
+    const tA = P.colY - HEA.b / 2, tB = P.colY + HEA.b / 2;
+    part('IfcBeam', 'HEA160 langs vloerrand', 'BEAM', null, false);
+    slat(d.sweep, rA, rB, y0, y0 + HEA.tf, tA, tB, mats.steel);
+    slat(d.sweep, rA, rB, y1 - HEA.tf, y1, tA, tB, mats.steel);
+    slat(d.sweep, rA, rB, y0 + HEA.tf, y1 - HEA.tf, P.colY - HEA.tw / 2, P.colY + HEA.tw / 2, mats.steel);
+
+    // Hoeklijn 12 mm haaks op de vloerrand: ligt op de HEA160 en draagt de zijrand van de vloer
+    part('IfcMember', 'Hoeklijn 12 mm', 'MEMBER', null, false);
+    slat(d.sweep, 0, 150, y1, y1 + HOEK, 0, d.rOut + 900, mats.steel);
+    slat(d.sweep, -HOEK, 0, y1, y1 + 150, 0, d.rOut + 900, mats.steel);
+
+    // Koppelingen: koker 100/100 van de kolom naar de binnenboom, met een plaat op de boom.
+    // De ingestelde hoogte bepaalt waar de koppeling de oplopende boom raakt; ze zit in de zone
+    // onder de balustervoeten.
     if (P.ties && !d.spil) {
-      for (const k of [1, 3, 5]) {
-        const f = Math.min(d.nT - 0.5, Math.floor(d.nT * k / 6) + 0.5) * d.dA;
-        const lo = bIn.bot(f), hi = Math.max(lo + 60, bIn.top(f) - 120);
-        const y = (lo + hi) / 2, ph = Math.min(160, hi - lo);
+      const zone = f => { const lo = bIn.bot(f); return [lo, Math.max(lo + 60, bIn.top(f) - 120)]; };
+      const mid = f => { const [lo, hi] = zone(f); return (lo + hi) / 2; };
+      const e = 110 / d.rIn, fA = Math.min(e, d.sweep / 2), fB = Math.max(d.sweep - e, d.sweep / 2);
+      for (let i = 1; i <= P.tieN; i++) {
+        const y = Math.min(Math.max(P['tie' + i], mid(fA)), mid(fB), topY - 50);
+        let a = fA, b = fB;
+        for (let n = 0; n < 40; n++) { const m = (a + b) / 2; if (mid(m) < y) a = m; else b = m; }
+        const f = (a + b) / 2, [lo, hi] = zone(f), ph = Math.min(160, hi - lo);
         const p = B.pt(d.rIn - WT / 2, f, y);
         const dx = p.x - c.x, dz = p.z - c.z;
-        part('IfcMember', 'Koppeling ' + (k + 1) / 2, 'STRUT');
+        part('IfcMember', 'Koppeling ' + i, 'STRUT');
         const strut = add(new THREE.BoxGeometry(Math.hypot(dx, dz), Math.min(100, ph), 100), mats.steel);
         strut.position.set((p.x + c.x) / 2, y, (p.z + c.z) / 2);
         strut.rotation.y = Math.atan2(-dz, dx);
-        part('IfcPlate', 'Koppelplaat ' + (k + 1) / 2, 'SHEET');
+        part('IfcPlate', 'Koppelplaat ' + i, 'SHEET');
         const pl = add(new THREE.BoxGeometry(14, ph, 200), mats.steel);
         pl.position.copy(B.pt(d.rIn - WT - 7, f, y));
         pl.rotation.y = Math.PI / 2 - B.ang(f);
@@ -756,10 +802,33 @@ function limitLoop() {
   if (document.activeElement !== num) num.value = P.loop;
 }
 
+// Verdeelt de koppelingen gelijkmatig over de hoogte van de kolom; daarna is elke hoogte los in te stellen.
+function spreadTies() {
+  const a = 300, b = Math.max(a, derive().colTop - 160);
+  for (let i = 1; i <= P.tieN; i++) P['tie' + i] = Math.round((a + (b - a) * (i - 0.5) / P.tieN) / 10) * 10;
+}
+
+// Een koppeling moet onder de bovenkant van de kolom blijven; alleen de gekozen koppelingen zijn zichtbaar.
+function limitTies() {
+  const active = P.ties && P.column && P.core !== 'spil';
+  const hi = Math.max(200, Math.floor((derive().colTop - 60) / 10) * 10);
+  $('tie-opts').hidden = !active;
+  for (let i = 1; i <= 4; i++) {
+    const k = 'tie' + i, f = FIELDS.find(x => x.k === k), num = $('p-' + k), rng = $('r-' + k);
+    f.max = hi; num.max = rng.max = hi;
+    if (P[k] > hi) P[k] = hi;
+    rng.value = P[k];
+    if (document.activeElement !== num) num.value = P[k];
+    $('row-' + k).hidden = !active || i > P.tieN;
+  }
+}
+
 function update() {
   queued = false;
   limitLoop();
+  limitTies();
   const d = derive();
+  $('col-note').textContent = `Bovenkant kolom op ${nl(d.colTop)} mm. Daarboven: plaat ${PLATE}, HEA160 liggend (${HEA.h}), hoeklijn ${HOEK} en de vloeropbouw.`;
   renderChecks(d);
   if (renderer) { buildModel(d); render(); }
 }

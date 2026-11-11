@@ -10,8 +10,11 @@ lettertypen van een CDN, dus er is een internetverbinding nodig.
 
 - **Parameters** (links): straal en binnenstraal van de treden, looplijn, verdiepingshoogte, aantal optreden,
   draaihoek, starthoek, draairichting, tredendikte, boomhoogtes en leuninghoogte.
-- **Onderdelen**: stootborden, vloer boven, binnen- en buitenleuning, looplijn, kolom KK250/10 en de
-  koppeling van de trap aan de kolom op drie punten.
+- **Onderdelen**: stootborden, vloer boven, binnen- en buitenleuning en looplijn.
+- **Kolom KK250/10**: positie ten opzichte van het hart van de trap en de dikte van de vloeropbouw. Boven de
+  kolom zitten een plaat van 16 mm, een liggende HEA160 langs de vloerrand en een hoeklijn van 12 mm; de
+  bovenkant van de kolom volgt uit de verdiepingshoogte.
+- **Koppeling aan kolom**: 1 tot 4 koppelingen tussen de kolom en de binnenboom, elk met een eigen hoogte.
 - **Aanzichten**: 3D, bovenaanzicht en vooraanzicht.
 - **Standaardwaarden herstellen** zet alle parameters terug.
 - **IFC exporteren** slaat het model op als IFC4-bestand, zonder de vloer.
@@ -22,7 +25,8 @@ lettertypen van een CDN, dus er is een internetverbinding nodig.
 - Handregel buis 42,4 mm, balusters plat 60x12, binnen- en buitenboom van plaat 300x10,
   tredendragers van plaat 3 mm, eiken treden van 54 mm met een antislipstrook.
 - Standaard: treden R = 1500 mm, binnenstraal 400 mm, looplijn 400 mm uit de binnenzijde,
-  verdiepingshoogte 3750 mm, 18 optreden, leuninghoogte 1000 mm.
+  verdiepingshoogte 3750 mm, 18 optreden, leuninghoogte 1000 mm, vloeropbouw 330 mm
+  (bovenkant kolom op 3240 mm).
 
 ## Controle
 

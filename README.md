@@ -47,8 +47,9 @@ verouderd gemarkeerd.
 - Rekenmodel: lineair ruimtelijk raamwerk met de bomen, treden, kokers en kolom als staven.
 - Voetplaten en handjes liggen 70 mm onder het vloerpeil en zijn scharnierend; de kokers zitten star aan
   een plaat op de kolom en aan de binnenboom.
-- Elke koppeling heeft op de kolom een plaat zo breed als de kolom, met links en rechts een anker. De
-  tabel geeft per koppeling de grootste trek en afschuiving per anker.
+- Elke koppeling heeft op de kolom een plaat zo breed als de kolom, met links en rechts een anker. Komt
+  de koker binnen 50 mm van een kolomhoek uit, dan wordt het een hoekplaat om die hoek, met op elk
+  kolomvlak een anker. De tabel geeft per koppeling de grootste trek en afschuiving per anker.
 - Bij de tabel staat een schema: een plattegrond met de krachten op de vloeren en een aanzicht van de
   kolom met de krachten uit de koppelingen.
 - Belasting: eigen gewicht en een veranderlijke belasting in kN/m2 op alle treden, in te vullen naar de

@@ -10,7 +10,7 @@ lettertypen van een CDN, dus er is een internetverbinding nodig.
 
 - **Parameters** (links): straal en binnenstraal van de treden, looplijn, verdiepingshoogte, aantal optreden,
   draaihoek, starthoek, draairichting, tredendikte, boomhoogtes en leuninghoogte.
-- **Onderdelen**: stootborden, vloer boven, binnen- en buitenleuning en looplijn.
+- **Onderdelen**: stootborden, vloer boven (ook transparant), binnen- en buitenleuning en looplijn.
 - **Zware tredendragers**: 0 tot 4 treden krijgen een koker 100x100x5 onder de tredendrager, van boom tot
   boom. De knop "Gunstigste plekken zoeken" kiest de treden waar dat de steunpunten van de buitenboom
   het meest ontlast; de tredenummers zijn daarna los aan te passen. Elke tredendrager heeft links en
@@ -20,7 +20,8 @@ lettertypen van een CDN, dus er is een internetverbinding nodig.
   bovenkant van de kolom volgt uit de verdiepingshoogte.
 - **Koppeling aan kolom**: kokers 200x100x5 haaks uit de kolomvlakken die naar de trap wijzen (bij een kolom
   in het trapgat zijn dat er twee), onder de treden door tot aan de buitenboom. De bovenkant ligt tegen de
-  laagste trede op hun weg; waar een boom hoger ligt, vult een opstand het verschil.
+  laagste trede op hun weg; waar een boom hoger ligt, vult een opstand het verschil. De onderste en de
+  bovenste koker zijn los aan en uit te zetten.
 - **Aanzichten**: 3D, bovenaanzicht en vooraanzicht.
 - **Standaardwaarden herstellen** zet alle parameters terug.
 - **IFC exporteren** slaat het model op als IFC4-bestand, zonder de vloer.
@@ -29,11 +30,13 @@ lettertypen van een CDN, dus er is een internetverbinding nodig.
 
 - Trap rechtsom omhoog, 270 graden, de bovenste trede op vloerhoogte.
 - Handregel buis 42,4 mm, balusters plat 60x12, binnen- en buitenboom van plaat 300x10,
-  tredendragers van plaat 3 mm, eiken treden van 54 mm met een antislipstrook.
+  tredendragers van plaat 3 mm, eiken treden van 40 mm met een antislipstrook.
+- Onderaan staan de bomen op voetplaten van 250x300x20 op de constructievloer; bovenaan zitten ze vast
+  aan een hoeklijn L100x100x10 langs de vloerrand, op de kanaalplaatvloer.
 - Standaard: treden R = 1500 mm, binnenstraal 400 mm, looplijn 400 mm uit de binnenzijde,
   verdiepingshoogte 3750 mm, 18 optreden, leuninghoogte 1000 mm, vloeropbouw 330 mm
   (bovenkant kolom op 3240 mm).
-- Standaard vier zware tredendragers, bij trede 1, 5, 13 en 14.
+- Standaard alleen de bovenste koker aan de kolom en geen zware tredendragers.
 
 ## Controle
 
@@ -47,12 +50,12 @@ Controleer ze op wetten.overheid.nl voordat je erop toetst.
 ## Belasting
 
 Op het tabblad Belasting rekent de knop "Belasting berekenen" de krachten uit die de trap afgeeft aan de
-voetplaten op de vloer beneden, de handjes op de kanaalplaatvloer boven en elke koppeling aan de kolom.
+voetplaten op de vloer beneden, de hoeklijn op de kanaalplaatvloer boven en elke koppeling aan de kolom.
 De uitkomst wordt alleen bijgewerkt als je op de knop drukt; na een wijziging van de invoer staat ze als
 verouderd gemarkeerd.
 
 - Rekenmodel: lineair ruimtelijk raamwerk met de bomen, treden, kokers en kolom als staven.
-- Voetplaten en handjes liggen 70 mm onder het vloerpeil en zijn scharnierend; de kokers zitten star aan
+- Voetplaten en hoeklijn liggen 70 mm onder het vloerpeil en zijn scharnierend; de kokers zitten star aan
   een plaat op de kolom en aan beide bomen.
 - Elke koppeling heeft op de kolom een plaat van 250x300, zo breed als de kolom, met links en rechts een
   anker. De tabel geeft per koppeling de grootste trek en afschuiving per anker.

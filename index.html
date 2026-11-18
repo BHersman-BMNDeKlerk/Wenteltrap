@@ -317,6 +317,8 @@ body {
       <h2>Koppeling aan kolom</h2>
       <div class="checks-list one">
         <label><input type="checkbox" id="o-ties" data-key="ties"> Trap aan kolom gekoppeld</label>
+        <label><input type="checkbox" id="o-tieLow" data-key="tieLow"> Onderste koker</label>
+        <label><input type="checkbox" id="o-tieHigh" data-key="tieHigh"> Bovenste koker</label>
       </div>
       <p class="note">Koker 200×100×5, haaks uit de kolom onder de trap door tot aan de buitenboom, op een plaat van 250×300 met links en rechts een anker. Alleen de kolomvlakken die naar de trap wijzen krijgen een koker. De bovenkant ligt tegen de laagste trede op zijn weg; waar een boom hoger ligt, vult een opstand het verschil.</p>
       <p class="note" id="tie-note"></p>
@@ -327,6 +329,7 @@ body {
       <div class="checks-list">
         <label><input type="checkbox" id="o-risers" data-key="risers"> Stootborden</label>
         <label><input type="checkbox" id="o-landing" data-key="landing"> Vloer boven</label>
+        <label><input type="checkbox" id="o-floorGlass" data-key="floorGlass"> Vloer transparant</label>
         <label><input type="checkbox" id="o-railOut" data-key="railOut"> Buitenleuning</label>
         <label><input type="checkbox" id="o-railIn" data-key="railIn"> Binnenleuning</label>
         <label><input type="checkbox" id="o-showLoop" data-key="showLoop"> Looplijn</label>
@@ -410,25 +413,27 @@ const WT = 10;          // plaatdikte van de bomen (mm)
 const PLATE = 16;       // plaat boven de kolom (mm)
 const HOEK = 12;        // hoeklijn onder de vloer (mm)
 const HEA = { h: 152, b: 160, tw: 6, tf: 9 }; // HEA160
-const SUP_DROP = 70;     // voetplaten en handjes liggen 70 mm onder het vloerpeil (dikte dekvloer)
-const BASE_T = 15;       // dikte voetplaat onder een boom (mm)
+const SUP_DROP = 70;     // voetplaten en hoeklijn liggen 70 mm onder het vloerpeil (dikte dekvloer)
+const BASE_T = 20;       // dikte voetplaat onder een boom (mm)
+const FOOT = { w: 250, l: 300, back: 60 }; // voetplaat: breedte haaks op de boom, lengte langs de boom, deel achter het eind
+const TOPL = { a: 100, t: 10 };            // hoeklijn bovenaan: L100x100x10
 // Koppeling: koker 200x100 (200 hoog), haaks uit een kolomvlak naar de binnenboom
 const TIE = { h: 200, b: 100 };
 // Plaat van een koppeling op de kolom: zo breed als de kolom, met links en rechts een anker op halve hoogte
 const CP = { w: 250, h: 300, t: 12, a: 90 }; // a: halve hartafstand van de ankers
 const CARRIER = 3;      // plaatdikte van de tredendragers (mm)
 const TUBE = 42.4;      // handregel, buis (mm)
-const STATE_V = 7;      // versie van de uitgangspunten; oudere bewaarde waarden vervallen
+const STATE_V = 8;      // versie van de uitgangspunten; oudere bewaarde waarden vervallen
 const STEP = 2.5 * DEG; // facetgrootte van gebogen vlakken
 
 // Parameters in mm en graden.
 const P = {
   rOut: 1500, rIn: 400, H: 3750, N: 18, sweep: 270, start: 0,
   dir: 1, core: 'wang',
-  loop: 400, t: 54, rail: 1000, boomOut: 300, boomIn: 300,
-  risers: false, landing: true, railOut: true, railIn: true, showLoop: true,
-  column: true, ties: true, colX: 171, colY: 158, floorT: 330,
-  heavyN: 4, heavy1: 1, heavy2: 5, heavy3: 13, heavy4: 14, // gunstigste plekken voor de standaardtrap
+  loop: 400, t: 40, rail: 1000, boomOut: 300, boomIn: 300,
+  risers: false, landing: true, floorGlass: false, railOut: true, railIn: true, showLoop: true,
+  column: true, ties: true, tieLow: false, tieHigh: true, colX: 171, colY: 158, floorT: 330,
+  heavyN: 0, heavy1: 1, heavy2: 5, heavy3: 13, heavy4: 14,
   use: 'vlucht',
 };
 const DEFAULTS = { ...P };
@@ -557,6 +562,8 @@ function syncInputs() {
   document.querySelectorAll('.checks-list input').forEach(c => { c.checked = !!P[c.dataset.key]; });
   $('o-railIn').disabled = P.core === 'spil';
   $('o-ties').disabled = !P.column || P.core === 'spil';
+  $('o-tieLow').disabled = $('o-tieHigh').disabled = $('o-ties').disabled || !P.ties;
+  $('o-floorGlass').disabled = !P.landing;
   for (const k of ['colX', 'colY']) $('p-' + k).disabled = $('r-' + k).disabled = !P.column;
 }
 
@@ -632,6 +639,7 @@ function initScene() {
   mats.steel = new THREE.MeshStandardMaterial({ color: 0x5a6672, metalness: 0.25, roughness: 0.5 });
   mats.wood = new THREE.MeshStandardMaterial({ color: 0xc89b5f, roughness: 0.72 });
   mats.concrete = new THREE.MeshStandardMaterial({ color: 0xb3b9bf, roughness: 0.95 });
+  mats.glass = new THREE.MeshStandardMaterial({ color: 0xb3b9bf, roughness: 0.95, transparent: true, opacity: 0.28, depthWrite: false });
   mats.rubber = new THREE.MeshStandardMaterial({ color: 0x17191c, roughness: 0.9 });
   mats.loop = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
 
@@ -837,13 +845,18 @@ function tieCandidates(d, heavy = heavySet(d)) {
       face: [face.x, face.z], S: [S.x, S.z],
     });
   }
+  // De laagste koker is de onderste, de andere de bovenste; staat er maar één, dan telt de helft van de kolom
   out.sort((a, b) => a.y - b.y);
+  out.forEach((t, k) => {
+    t.low = out.length > 1 ? k === 0 : t.y < d.colTop / 2;
+    t.name = t.low ? 'Onderste koppeling' : 'Bovenste koppeling';
+  });
   return out;
 }
 
-// De koppelingen die passen, genummerd van onder naar boven
+// De gekozen koppelingen die passen, genummerd van onder naar boven
 function tieLayout(d, heavy) {
-  return tieCandidates(d, heavy).filter(t => t.ok).map((t, k) => ({ ...t, i: k + 1 }));
+  return tieCandidates(d, heavy).filter(t => t.ok && (t.low ? P.tieLow : P.tieHigh)).map((t, k) => ({ ...t, i: k + 1 }));
 }
 
 function add(geom, mat, shadow = true) {
@@ -864,6 +877,7 @@ function buildModel(d) {
     m.position.copy(B.radial(f).multiplyScalar((rA + rB) / 2)).add(B.tangent(f).multiplyScalar((t0 + t1) / 2));
     m.position.y = (y0 + y1) / 2;
     m.rotation.y = Math.PI / 2 - B.ang(f);
+    return m;
   };
 
   // Treden: eiken op een tredendrager van 3 mm plaat met gezette voor- en achterrand
@@ -916,34 +930,54 @@ function buildModel(d) {
   // afgesneden op de vloer en op de verdieping
   const bOut = boomLines(d, P.boomOut), bIn = boomLines(d, P.boomIn);
   part('IfcMember', 'Buitenboom', 'STRINGER');
-  add(B.sector(d.rOut, d.rOut + WT, 0, d.sweep, bOut.bot, bOut.top), mats.steel);
+  // Bovenaan eindigen de bomen tegen het staande been van de hoeklijn
+  add(B.sector(d.rOut, d.rOut + WT, 0, d.sweep - TOPL.t / (d.rOut + WT / 2), bOut.bot, bOut.top), mats.steel);
   if (d.spil) {
     part('IfcColumn', 'Spil', 'COLUMN');
     const col = add(new THREE.CylinderGeometry(d.rIn, d.rIn, d.H + d.rail, 48), mats.steel);
     col.position.y = (d.H + d.rail) / 2;
   } else {
     part('IfcMember', 'Binnenboom', 'STRINGER');
-    add(B.sector(d.rIn - WT, d.rIn, 0, d.sweep, bIn.bot, bIn.top), mats.steel);
+    add(B.sector(d.rIn - WT, d.rIn, 0, d.sweep - TOPL.t / (d.rIn - WT / 2), bIn.bot, bIn.top), mats.steel);
   }
 
-  // Voetplaten onder de bomen, op de constructievloer onder de dekvloer
+  // Voetplaten onder het eind van de bomen, op de constructievloer onder de dekvloer. Zou de voetplaat van
+  // de binnenboom de voetplaat van de kolom (400x400) raken, dan schuift hij naar buiten op.
+  const colC = B.radial(d.sweep).multiplyScalar(P.colX).add(B.tangent(d.sweep).multiplyScalar(P.colY));
+  const cu = B.radial(d.sweep), ct = B.tangent(d.sweep), fu = B.radial(0), ft = B.tangent(0);
+  const inColBase = (x, z) => P.column && Math.abs((x - colC.x) * cu.x + (z - colC.z) * cu.z) < 205 && Math.abs((x - colC.x) * ct.x + (z - colC.z) * ct.z) < 205;
   const foot = (r, name) => {
+    const rect = sh => [r - FOOT.w / 2 + sh, r + FOOT.w / 2 + sh, -FOOT.back, FOOT.l - FOOT.back];
+    const clash = sh => {
+      const [r0, r1, t0, t1] = rect(sh);
+      for (let a = 0; a <= 4; a++) for (let b = 0; b <= 4; b++) {
+        const rr = r0 + (r1 - r0) * a / 4, tt = t0 + (t1 - t0) * b / 4;
+        if (inColBase(fu.x * rr + ft.x * tt, fu.z * rr + ft.z * tt)) return true;
+      }
+      if (!P.column) return false;
+      for (const a of [-205, 205]) for (const b of [-205, 205]) {   // hoeken van de kolomvoetplaat in de voetplaat
+        const x = colC.x + cu.x * a + ct.x * b, z = colC.z + cu.z * a + ct.z * b;
+        const rr = x * fu.x + z * fu.z, tt = x * ft.x + z * ft.z;
+        if (rr > r0 && rr < r1 && tt > t0 && tt < t1) return true;
+      }
+      return false;
+    };
+    let sh = 0;
+    while (sh < FOOT.w / 2 - 40 && clash(sh)) sh += 10;
+    const [r0, r1, t0, t1] = rect(sh);
     part('IfcPlate', name, 'SHEET');
-    slat(0, r - 75, r + 75, -SUP_DROP, BASE_T - SUP_DROP, -30, 120, mats.steel);
+    slat(0, r0, r1, -SUP_DROP, BASE_T - SUP_DROP, t0, t1, mats.steel);
   };
   foot(d.rOut + WT / 2, 'Voetplaat buitenboom');
   if (!d.spil) foot(d.rIn - WT / 2, 'Voetplaat binnenboom');
 
-  // Bovenaan: eindplaat tussen de bomen, die op twee handjes op de kanaalplaatvloer aansluit
-  if (!d.spil) {
-    const lvl = d.H - SUP_DROP;
-    part('IfcPlate', 'Eindplaat tussen bomen', 'SHEET');
-    slat(d.sweep, d.rIn, d.rOut, d.H - 285, d.H - 85, -20, -10, mats.steel);
-    [[d.rIn + 60, 'binnenboom'], [d.rOut - 160, 'buitenboom']].forEach(([r, side]) => {
-      part('IfcMember', 'Handje bij ' + side, 'MEMBER');
-      slat(d.sweep, r, r + 100, lvl, lvl + 10, 0, 100, mats.steel);
-      slat(d.sweep, r, r + 100, lvl - 110, lvl + 10, -10, 0, mats.steel);
-    });
+  // Bovenaan: één hoeklijn L100x100x10 langs de vloerrand. Het liggende been ligt op de kanaalplaatvloer
+  // onder de dekvloer, het staande been tegen de rand; beide bomen zitten tegen het staande been vast.
+  {
+    const lvl = d.H - SUP_DROP, rA = d.spil ? d.rIn : d.rIn - WT - 60, rB = d.rOut + WT + 60;
+    part('IfcMember', 'Hoeklijn bovenaan', 'MEMBER');
+    slat(d.sweep, rA, rB, lvl, lvl + TOPL.t, 0, TOPL.a, mats.steel);
+    slat(d.sweep, rA, rB, lvl + TOPL.t - TOPL.a, lvl + TOPL.t, -TOPL.t, 0, mats.steel);
   }
 
   // Leuning: handregel buis 42,4 op balusters plat 60x12, één per optrede, tegen de zijkant van de boom
@@ -971,7 +1005,10 @@ function buildModel(d) {
 
   // Vloer van de verdieping, vanaf de laatste optrede
   part(null);
-  if (P.landing) slat(d.sweep, 0, d.rOut + 800, d.H - P.floorT, d.H, 0, d.rOut + 900, mats.concrete);
+  if (P.landing) {
+    const slab = slat(d.sweep, 0, d.rOut + 800, d.H - P.floorT, d.H, 0, d.rOut + 900, P.floorGlass ? mats.glass : mats.concrete);
+    slab.castShadow = !P.floorGlass;
+  }
 
   // Kolom KK250/10 in het schalmgat, uitgezet vanuit het hart van de trap langs en haaks op de vloerrand.
   // Opbouw van boven naar beneden: vloeropbouw, hoeklijn, HEA160 liggend langs de vloerrand, plaat, kolom.
@@ -1006,7 +1043,7 @@ function buildModel(d) {
     // Koppelingen: koker 200x100 haaks uit de kolom, onder de trap door tot aan de buitenboom. Ligt de
     // binnenboom op de koker, dan loopt de koker er ononderbroken onder door; anders gaat hij erdoorheen.
     for (const tie of ties) {
-      part('IfcMember', 'Koppeling ' + tie.i, 'STRUT');
+      part('IfcMember', tie.name, 'STRUT');
       const seg = (a, b) => {
         const dx = b[0] - a[0], dz = b[1] - a[1];
         const m = add(new THREE.BoxGeometry(Math.hypot(dx, dz), TIE.h, TIE.b), mats.steel);
@@ -1019,11 +1056,11 @@ function buildModel(d) {
       const topT = tie.y + TIE.h / 2;
       [[tie.gapIn, tie.fIn, d.rIn - WT, d.rIn, 'binnenboom'], [tie.gapOut, tie.fOut, d.rOut, d.rOut + WT, 'buitenboom']].forEach(([gap, f, rA, rB, side]) => {
         if (gap < 1) return;
-        part('IfcPlate', `Opstand koppeling ${tie.i} ${side}`, 'SHEET');
+        part('IfcPlate', `Opstand ${tie.name.toLowerCase()} ${side}`, 'SHEET');
         slat(f, rA, rB, topT, topT + gap, -75, 75, mats.steel);
       });
       // Plaat op het kolomvlak, zo breed als de kolom, met links en rechts een anker
-      part('IfcPlate', 'Kolomplaat koppeling ' + tie.i, 'SHEET');
+      part('IfcPlate', 'Kolomplaat ' + tie.name.toLowerCase(), 'SHEET');
       const plate = add(new THREE.BoxGeometry(CP.w, CP.h, CP.t), mats.steel);
       plate.position.set(tie.face[0] + tie.n[0] * CP.t / 2, tie.y, tie.face[1] + tie.n[1] * CP.t / 2);
       plate.rotation.y = -Math.atan2(tie.s[1], tie.s[0]);
@@ -1061,14 +1098,14 @@ function tieInfo(d) {
   const note = $('tie-note');
   if (!P.ties || !P.column || d.spil) { note.textContent = ''; return; }
   const all = tieCandidates(d);
-  let k = 0;
   const span = t => t.treads[0] === t.treads[1] ? `trede ${t.treads[0]}` : `trede ${t.treads[0]} en ${t.treads[1]}`;
   const gaps = t => [[t.gapIn, 'binnenboom'], [t.gapOut, 'buitenboom']].filter(([g]) => g >= 1)
     .map(([g, side]) => `opstand van ${nl(g)} mm onder de ${side}`).join(', ');
   const parts = all.map(t => {
-    if (!t.ok) return `Onder ${span(t)} past geen koppeling: ${t.why}.`;
+    if (!t.ok) return `${t.name}: onder ${span(t)} past geen koker, want ${t.why}.`;
+    if (!(t.low ? P.tieLow : P.tieHigh)) return `${t.name} staat uit.`;
     const g = gaps(t);
-    return `Koppeling ${++k}: hart op ${nl(t.y)} mm, onder ${span(t)}${g ? ', ' + g : ''}.`;
+    return `${t.name}: hart op ${nl(t.y)} mm, onder ${span(t)}${g ? ', ' + g : ''}.`;
   });
   note.textContent = all.length ? parts.join(' ')
     : 'Geen enkel kolomvlak wijst onder de trap. Verplaats de kolom om de trap te kunnen koppelen.';
@@ -1324,8 +1361,8 @@ function computeLoads(q, heavyTreads) {
   const rows = [
     floorRow('onder', 'A', 'Voetplaat binnenboom', inner.ids[0], true),
     floorRow('onder', 'B', 'Voetplaat buitenboom', outer.ids[0], false),
-    floorRow('boven', 'C', 'Handje bij binnenboom', inner.ids[inner.ids.length - 1], true),
-    floorRow('boven', 'D', 'Handje bij buitenboom', outer.ids[outer.ids.length - 1], false),
+    floorRow('boven', 'C', 'Hoeklijn bij binnenboom', inner.ids[inner.ids.length - 1], true),
+    floorRow('boven', 'D', 'Hoeklijn bij buitenboom', outer.ids[outer.ids.length - 1], false),
   ];
   for (const { tie, el, wS } of tieEls) {
     const a = nodes[el.i], b = nodes[el.j], L = Math.hypot(b[0] - a[0], b[2] - a[2]);
@@ -1340,7 +1377,7 @@ function computeLoads(q, heavyTreads) {
         Mn: (f[3] * n[0] + f[5] * n[1]) / 1e6, Ms: (f[3] * s2[0] + f[5] * s2[1]) / 1e6, Mv: f[4] / 1e6,
       };
     };
-    rows.push({ group: 'kolom', id: 'K' + tie.i, name: `Koppeling ${tie.i} op ${nl(tie.y)} mm, trede ${[...new Set(tie.treads)].join('–')}`, G: c(0), Q: c(1), tie });
+    rows.push({ group: 'kolom', id: 'K' + tie.i, name: `${tie.name} op ${nl(tie.y)} mm, trede ${[...new Set(tie.treads)].join('–')}`, G: c(0), Q: c(1), tie });
   }
   let sag = 0;
   for (let i = 0; i < nodes.length; i++) sag = Math.max(sag, -(sol.U[0][i * 6 + 1] + sol.U[1][i * 6 + 1]));
@@ -1444,7 +1481,7 @@ function loadFigures(res, total) {
 }
 
 // Zoekt stap voor stap de treden waar een zware drager de buitenboom het meest ontlast: telkens komt de
-// trede erbij die de som van de krachten op de voetplaat en het handje van de buitenboom het kleinst maakt.
+// trede erbij die de som van de krachten op de voetplaat en de hoeklijn bij de buitenboom het kleinst maakt.
 async function bestHeavy(n, q, onStep) {
   const nT = derive().nT, chosen = [];
   const score = set => {
@@ -1500,7 +1537,7 @@ async function findHeavy() {
     r.treads.forEach((t, k) => { P['heavy' + (k + 1)] = t; });
     heavyFound = heavyKey();
     syncInputs(); update();
-    status.textContent = `Gunstigste plekken: trede ${r.treads.join(', ')}. De krachten op de voetplaat en het handje van de ` +
+    status.textContent = `Gunstigste plekken: trede ${r.treads.join(', ')}. De krachten op de voetplaat en de hoeklijn bij de ` +
       `buitenboom gaan samen van ${nl(r.before, 1)} naar ${nl(r.after, 1)} kN, bij q = ${nl(q, 1)} kN/m².`;
   } catch (err) {
     status.textContent = 'Het zoeken is niet gelukt: ' + err.message;
@@ -1531,7 +1568,7 @@ function runLoads() {
   const total = r => { const o = {}; for (const k of Object.keys(r.G)) o[k] = r.G[k] + r.Q[k]; return o; };
   const titles = {
     onder: `Vloer beneden: voetplaten ${SUP_DROP} mm onder het vloerpeil`,
-    boven: `Vloer boven: handjes op de kanaalplaat, ${SUP_DROP} mm onder het vloerpeil`,
+    boven: `Vloer boven: hoeklijn op de kanaalplaat, ${SUP_DROP} mm onder het vloerpeil`,
     kolom: 'Kolom: koppelingen, koker 200×100 haaks op de kolom tot aan de buitenboom, plaat met twee ankers',
   };
   let html = '', group = null;
@@ -1553,7 +1590,7 @@ function runLoads() {
     `Karakteristieke waarden zonder belastingfactoren, bij q = ${nl(res.q, 1)} kN/m² op alle treden. V is positief als de trap ` +
     `op het steunpunt drukt, negatief als hij eraan trekt. H is de horizontale kracht, axiaal is positief bij trek in de koker, ` +
     `M is het buigend moment van de koker op de plaat. Elke koppeling is een koker 200×100×5 haaks uit een kolomvlak, onder de trap door tot aan de buitenboom, op een plaat van ${CP.w}×${CP.h} met twee ankers, links en rechts op halve hoogte (hart op hart ${2 * CP.a} mm). De trek per anker bevat ook het koppel tussen het anker en de plaatrand die op de kolom drukt. Rekenmodel: bomen, treden, kokers en kolom als staven; voetplaten en ` +
-    `handjes scharnierend; kokers star aan de kolomplaat en aan beide bomen. De boom rekent mee met zijn doorsnede haaks op de helling: ` +
+    `hoeklijn scharnierend; kokers star aan de kolomplaat en aan beide bomen. De boom rekent mee met zijn doorsnede haaks op de helling: ` +
     `binnen ${nl(res.depthIn)} mm, buiten ${nl(res.depthOut)} mm hoog. ${res.heavy.length ? 'Zware tredendragers bij trede ' + res.heavy.join(', ') + '. ' : 'Geen zware tredendragers. '}Grootste zakking in het model: ${nl(res.sag, 1)} mm; grootste moment in de buitenboom: ${nl(res.mOut, 1)} kNm. ` +
     `Indicatief, geen vervanging van de berekening van de constructeur.`;
   out.hidden = false; out.classList.remove('stale');

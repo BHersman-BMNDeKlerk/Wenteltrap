@@ -318,15 +318,8 @@ body {
       <div class="checks-list one">
         <label><input type="checkbox" id="o-ties" data-key="ties"> Trap aan kolom gekoppeld</label>
       </div>
-      <div class="optrow" id="tie-opts">
-        <span id="lbl-tieN">Aantal koppelingen</span>
-        <div class="seg" role="group" aria-labelledby="lbl-tieN" data-key="tieN">
-          <button type="button" id="tieN-1" data-val="1">1</button>
-          <button type="button" id="tieN-2" data-val="2">2</button>
-          <button type="button" id="tieN-3" data-val="3">3</button>
-          <button type="button" id="tieN-4" data-val="4">4</button>
-        </div>
-      </div>
+      <p class="note">Koker 200×100×5, haaks uit de kolom naar de binnenboom, op een plaat van 250×300 met links en rechts een anker. Alleen de kolomvlakken die naar de trap wijzen krijgen een koker; waar die de boom raakt, volgt uit de stand van de kolom.</p>
+      <p class="note" id="tie-note"></p>
     </section>
 
     <section class="group">
@@ -419,12 +412,13 @@ const HOEK = 12;        // hoeklijn onder de vloer (mm)
 const HEA = { h: 152, b: 160, tw: 6, tf: 9 }; // HEA160
 const SUP_DROP = 70;     // voetplaten en handjes liggen 70 mm onder het vloerpeil (dikte dekvloer)
 const BASE_T = 15;       // dikte voetplaat onder een boom (mm)
+// Koppeling: koker 200x100 (200 hoog), haaks uit een kolomvlak naar de binnenboom
+const TIE = { h: 200, b: 100 };
 // Plaat van een koppeling op de kolom: zo breed als de kolom, met links en rechts een anker op halve hoogte
-const CP = { w: 250, h: 200, t: 12, a: 90, leg: 140, ac: 85 }; // a: halve hartafstand van de ankers; leg, ac: been en ankerafstand van de hoekplaat
-const CORNER = 0.6;     // komt de koker binnen 50 mm van een kolomhoek uit, dan wordt het een hoekplaat
+const CP = { w: 250, h: 300, t: 12, a: 90 }; // a: halve hartafstand van de ankers
 const CARRIER = 3;      // plaatdikte van de tredendragers (mm)
 const TUBE = 42.4;      // handregel, buis (mm)
-const STATE_V = 6;      // versie van de uitgangspunten; oudere bewaarde waarden vervallen
+const STATE_V = 7;      // versie van de uitgangspunten; oudere bewaarde waarden vervallen
 const STEP = 2.5 * DEG; // facetgrootte van gebogen vlakken
 
 // Parameters in mm en graden.
@@ -434,8 +428,7 @@ const P = {
   loop: 400, t: 54, rail: 1000, boomOut: 300, boomIn: 300,
   risers: false, landing: true, railOut: true, railIn: true, showLoop: true,
   column: true, ties: true, colX: 171, colY: 158, floorT: 330,
-  tieN: 3, tie1: 760, tie2: 1690, tie3: 2620, tie4: 3000,
-  heavyN: 4, heavy1: 1, heavy2: 2, heavy3: 13, heavy4: 18, // gunstigste plekken voor de standaardtrap
+  heavyN: 4, heavy1: 1, heavy2: 2, heavy3: 17, heavy4: 18, // gunstigste plekken voor de standaardtrap
   use: 'vlucht',
 };
 const DEFAULTS = { ...P };
@@ -476,10 +469,6 @@ const FIELDS = [
   { k: 'heavy2', g: 'g-zwaar', label: 'Zware drager 2 bij trede',     unit: 'nr', min: 1,   max: 18,   step: 1 },
   { k: 'heavy3', g: 'g-zwaar', label: 'Zware drager 3 bij trede',     unit: 'nr', min: 1,   max: 18,   step: 1 },
   { k: 'heavy4', g: 'g-zwaar', label: 'Zware drager 4 bij trede',     unit: 'nr', min: 1,   max: 18,   step: 1 },
-  { k: 'tie1',  g: 'g-koppel', label: 'Koppeling 1, hoogte hart',   unit: 'mm', min: 100, max: 3180, step: 10 },
-  { k: 'tie2',  g: 'g-koppel', label: 'Koppeling 2, hoogte hart',   unit: 'mm', min: 100, max: 3180, step: 10 },
-  { k: 'tie3',  g: 'g-koppel', label: 'Koppeling 3, hoogte hart',   unit: 'mm', min: 100, max: 3180, step: 10 },
-  { k: 'tie4',  g: 'g-koppel', label: 'Koppeling 4, hoogte hart',   unit: 'mm', min: 100, max: 3180, step: 10 },
 ];
 
 /* ------------------------------------------------------------------ afgeleide maten */
@@ -545,8 +534,7 @@ function buildFields() {
         $('tab-dims').hidden = tab !== 'dims'; $('tab-loads').hidden = tab !== 'loads';
         syncInputs(); return;
       }
-      P[key] = key === 'dir' || key === 'tieN' || key === 'heavyN' ? +b.dataset.val : b.dataset.val;
-      if (key === 'tieN') spreadTies();
+      P[key] = key === 'dir' || key === 'heavyN' ? +b.dataset.val : b.dataset.val;
       if (key === 'heavyN' && P.heavyN > 0 && P.core !== 'spil') { syncInputs(); update(); findHeavy(); return; }
       syncInputs(); schedule();
     });
@@ -787,40 +775,52 @@ function boomLines(d, hgt) {
   };
 }
 
-// Plaats van elke koppeling: de ingestelde hoogte bepaalt waar ze de oplopende binnenboom raakt.
-// Ze zit in de zone onder de balustervoeten. Geeft per koppeling de hoek f, de hoogte y en de plaathoogte.
-function tieLayout(d) {
+// Koppelingen: een koker haaks uit elk kolomvlak waarvan de lijn uit het kolomhart de binnenboom binnen de
+// draaihoek raakt. Bij een kolom in het trapgat zijn dat twee vlakken; de andere twee wijzen naar de vloer.
+// De koker zit midden op het kolomvlak en midden op de hoogte van de boom, dus waar hij de boom raakt ligt
+// vast door de stand van de kolom. Geeft alle vlakken die de boom raken, met ok en zo nodig de reden.
+function tieCandidates(d) {
   if (!P.column || !P.ties || d.spil) return [];
   const bIn = boomLines(d, P.boomIn);
-  const zone = f => { const lo = bIn.bot(f); return [lo, Math.max(lo + 60, bIn.top(f) - 120)]; };
-  const mid = f => { const [lo, hi] = zone(f); return (lo + hi) / 2; };
-  const e = 110 / d.rIn, fA = Math.min(e, d.sweep / 2), fB = Math.max(d.sweep - e, d.sweep / 2);
   const B = makeBuilder(d), u = B.radial(d.sweep), t = B.tangent(d.sweep);
   const c = u.clone().multiplyScalar(P.colX).add(t.clone().multiplyScalar(P.colY));
+  const rI = d.rIn - WT / 2, rF = d.rIn - WT;   // hart en binnenzijde van de binnenboom
+  const start = 125 + CP.t;                        // de koker begint op de plaat op het kolomvlak
   const out = [];
-  for (let i = 1; i <= P.tieN; i++) {
-    const y = Math.min(Math.max(P['tie' + i], mid(fA)), mid(fB), d.colTop - 50);
-    let a = fA, b = fB;
-    for (let n = 0; n < 40; n++) { const m = (a + b) / 2; if (mid(m) < y) a = m; else b = m; }
-    const f = (a + b) / 2, [lo, hi] = zone(f);
-    // De plaat ligt vlak op het kolomvlak dat naar het aansluitpunt op de boom wijst; de koker vertrekt
-    // uit het midden van de plaat.
-    const p = B.pt(d.rIn - WT / 2, f, y);
-    const eu = (p.x - c.x) * u.x + (p.z - c.z) * u.z, et = (p.x - c.x) * t.x + (p.z - c.z) * t.z;
-    const n1 = u.clone().multiplyScalar(Math.sign(eu) || 1), n2 = t.clone().multiplyScalar(Math.sign(et) || 1);
-    const base = { i, f, y, ph: Math.min(160, hi - lo), p: [p.x, p.z], c: [c.x, c.z] };
-    if (Math.min(Math.abs(eu), Math.abs(et)) >= CORNER * Math.max(Math.abs(eu), Math.abs(et))) {
-      // Bij een hoek: hoekplaat om de kolomhoek, met op elk vlak een anker; de koker vertrekt uit de hoek
-      const K = c.clone().addScaledVector(n1, 125).addScaledVector(n2, 125);
-      const S = K.clone().addScaledVector(n1, CP.t).addScaledVector(n2, CP.t);
-      out.push({ ...base, corner: true, n: [n1.x, n1.z], s: [n2.x, n2.z], K: [K.x, K.z], S: [S.x, S.z] });
-    } else {
-      const n = Math.abs(eu) >= Math.abs(et) ? n1 : n2;
-      const face = c.clone().addScaledVector(n, 125), S = face.clone().addScaledVector(n, CP.t);
-      out.push({ ...base, corner: false, n: [n.x, n.z], s: [n.z, -n.x], face: [face.x, face.z], S: [S.x, S.z] });
-    }
+  for (const n of [u.clone().negate(), t.clone().negate(), u.clone(), t.clone()]) {
+    // Eerste snijpunt voorbij de plaat van de lijn c + s n met de cirkel met straal r
+    const hit = r => {
+      const b = c.x * n.x + c.z * n.z, disc = b * b - (c.x * c.x + c.z * c.z - r * r);
+      if (disc < 0) return null;
+      const s1 = -b - Math.sqrt(disc), s2 = -b + Math.sqrt(disc);
+      return s1 > start ? s1 : s2 > start ? s2 : null;
+    };
+    const sI = hit(rI), sF = hit(rF);
+    if (sI == null || sF == null) continue;
+    const px = c.x + n.x * sI, pz = c.z + n.z * sI;
+    let f = ((Math.atan2(px, -pz) - d.a0) * d.dir) % (2 * Math.PI);
+    if (f < 0) f += 2 * Math.PI;
+    const e = (TIE.b / 2 + 20) / rI;
+    if (f < e || f > d.sweep - e) continue;        // dit vlak wijst naast de trap
+    const y = (bIn.bot(f) + bIn.top(f)) / 2;
+    let why = '';
+    if (bIn.top(f) - bIn.bot(f) < TIE.h + 20) why = 'de boom is daar te laag voor de koker';
+    else if (y - CP.h / 2 < 30) why = 'de plaat komt onder de vloer';
+    else if (y + CP.h / 2 > d.colTop) why = 'de plaat komt boven de kolom uit';
+    const face = c.clone().addScaledVector(n, 125), S = face.clone().addScaledVector(n, CP.t);
+    out.push({
+      f, y, ok: !why, why, tread: Math.min(d.nT, Math.floor(f / d.dA) + 1),
+      p: [px, pz], q: [c.x + n.x * sF, c.z + n.z * sF], c: [c.x, c.z],
+      n: [n.x, n.z], s: [n.z, -n.x], face: [face.x, face.z], S: [S.x, S.z],
+    });
   }
+  out.sort((a, b) => a.f - b.f);
   return out;
+}
+
+// De koppelingen die passen, genummerd van onder naar boven
+function tieLayout(d) {
+  return tieCandidates(d).filter(t => t.ok).map((t, k) => ({ ...t, i: k + 1 }));
 }
 
 function add(geom, mat, shadow = true) {
@@ -915,6 +915,13 @@ function buildModel(d) {
   }
 
   // Leuning: handregel buis 42,4 op balusters plat 60x12, één per optrede, tegen de zijkant van de boom
+  // Een baluster aan de binnenboom die op een koppeling uitkomt, staat op de koker
+  const ties = tieLayout(d);
+  const footY = (r, f, side, y) => {
+    if (side !== 'binnen') return y;
+    for (const t of ties) if (Math.abs(f - t.f) * r < TIE.b / 2 + 35) y = Math.max(y, t.y + TIE.h / 2);
+    return y;
+  };
   const railing = (r, bm, side) => {
     const yRail = f => d.yN(f) + d.rail - TUBE / 2;
     const pts = [], n = Math.max(2, Math.ceil(d.sweep / (6 * DEG)));
@@ -925,7 +932,7 @@ function buildModel(d) {
     for (let k = 0; k <= d.nT; k++) {
       const f = Math.min(d.sweep - e, Math.max(e, k * d.dA));
       part('IfcMember', 'Baluster ' + side + ' ' + nr(k + 1), 'POST');
-      slat(f, r - 6, r + 6, Math.max(bm.bot(f), bm.top(f) - 120), yRail(f), -30, 30, mats.steel);
+      slat(f, r - 6, r + 6, footY(r, f, side, Math.max(bm.bot(f), bm.top(f) - 120)), yRail(f), -30, 30, mats.steel);
     }
   };
   if (P.railOut) railing(d.rOut + WT + 6, bOut, 'buiten');
@@ -965,38 +972,23 @@ function buildModel(d) {
     slat(d.sweep, 0, 150, y1, y1 + HOEK, 0, d.rOut + 900, mats.steel);
     slat(d.sweep, -HOEK, 0, y1, y1 + 150, 0, d.rOut + 900, mats.steel);
 
-    // Koppelingen: koker 100/100 van de kolom naar de binnenboom, met een plaat op de boom
-    for (const tie of tieLayout(d)) {
-      const dx = tie.p[0] - tie.S[0], dz = tie.p[1] - tie.S[1];
+    // Koppelingen: koker 200x100 haaks uit de kolom, van de kolomplaat tot tegen de binnenboom
+    for (const tie of ties) {
+      const dx = tie.q[0] - tie.S[0], dz = tie.q[1] - tie.S[1];
       part('IfcMember', 'Koppeling ' + tie.i, 'STRUT');
-      const strut = add(new THREE.BoxGeometry(Math.hypot(dx, dz), Math.min(100, tie.ph), 100), mats.steel);
-      strut.position.set((tie.p[0] + tie.S[0]) / 2, tie.y, (tie.p[1] + tie.S[1]) / 2);
+      const strut = add(new THREE.BoxGeometry(Math.hypot(dx, dz), TIE.h, TIE.b), mats.steel);
+      strut.position.set((tie.q[0] + tie.S[0]) / 2, tie.y, (tie.q[1] + tie.S[1]) / 2);
       strut.rotation.y = Math.atan2(-dz, dx);
-      // Plaat op de kolom met links en rechts een anker: vlak op een kolomvlak, of als hoekplaat om een hoek
+      // Plaat op het kolomvlak, zo breed als de kolom, met links en rechts een anker
       part('IfcPlate', 'Kolomplaat koppeling ' + tie.i, 'SHEET');
-      const leg = (x, z, along, len) => {
-        const m = add(new THREE.BoxGeometry(len, CP.h, CP.t), mats.steel);
-        m.position.set(x, tie.y, z); m.rotation.y = -Math.atan2(along[1], along[0]);
-      };
-      const bolt = (x, z, nrm) => {
-        const m = add(new THREE.CylinderGeometry(9, 9, 14, 12), mats.steel);
-        m.position.set(x + nrm[0] * (CP.t + 7), tie.y, z + nrm[1] * (CP.t + 7));
-        m.quaternion.setFromUnitVectors(UP, new THREE.Vector3(nrm[0], 0, nrm[1]));
-      };
-      if (tie.corner) {
-        const n1 = tie.n, n2 = tie.s, K = tie.K, L = CP.leg, h = CP.t / 2;
-        leg(K[0] + n1[0] * h + n2[0] * (CP.t - L) / 2, K[1] + n1[1] * h + n2[1] * (CP.t - L) / 2, n2, L + CP.t);
-        leg(K[0] + n2[0] * h - n1[0] * L / 2, K[1] + n2[1] * h - n1[1] * L / 2, n1, L);
-        bolt(K[0] - n2[0] * CP.ac, K[1] - n2[1] * CP.ac, n1);
-        bolt(K[0] - n1[0] * CP.ac, K[1] - n1[1] * CP.ac, n2);
-      } else {
-        leg(tie.face[0] + tie.n[0] * CP.t / 2, tie.face[1] + tie.n[1] * CP.t / 2, tie.s, CP.w);
-        for (const sa of [-CP.a, CP.a]) bolt(tie.face[0] + tie.s[0] * sa, tie.face[1] + tie.s[1] * sa, tie.n);
+      const plate = add(new THREE.BoxGeometry(CP.w, CP.h, CP.t), mats.steel);
+      plate.position.set(tie.face[0] + tie.n[0] * CP.t / 2, tie.y, tie.face[1] + tie.n[1] * CP.t / 2);
+      plate.rotation.y = -Math.atan2(tie.s[1], tie.s[0]);
+      for (const sa of [-CP.a, CP.a]) {
+        const bolt = add(new THREE.CylinderGeometry(9, 9, 14, 12), mats.steel);
+        bolt.position.set(tie.face[0] + tie.n[0] * (CP.t + 7) + tie.s[0] * sa, tie.y, tie.face[1] + tie.n[1] * (CP.t + 7) + tie.s[1] * sa);
+        bolt.quaternion.setFromUnitVectors(UP, new THREE.Vector3(tie.n[0], 0, tie.n[1]));
       }
-      part('IfcPlate', 'Koppelplaat ' + tie.i, 'SHEET');
-      const pl = add(new THREE.BoxGeometry(14, tie.ph, 200), mats.steel);
-      pl.position.copy(B.pt(d.rIn - WT - 7, tie.f, tie.y));
-      pl.rotation.y = Math.PI / 2 - B.ang(tie.f);
     }
   }
 
@@ -1021,25 +1013,17 @@ function limitLoop() {
   if (document.activeElement !== num) num.value = P.loop;
 }
 
-// Verdeelt de koppelingen gelijkmatig over de hoogte van de kolom; daarna is elke hoogte los in te stellen.
-function spreadTies() {
-  const a = 300, b = Math.max(a, derive().colTop - 160);
-  for (let i = 1; i <= P.tieN; i++) P['tie' + i] = Math.round((a + (b - a) * (i - 0.5) / P.tieN) / 10) * 10;
-}
-
-// Een koppeling moet onder de bovenkant van de kolom blijven; alleen de gekozen koppelingen zijn zichtbaar.
-function limitTies() {
-  const active = P.ties && P.column && P.core !== 'spil';
-  const hi = Math.max(200, Math.floor((derive().colTop - 60) / 10) * 10);
-  $('tie-opts').hidden = !active;
-  for (let i = 1; i <= 4; i++) {
-    const k = 'tie' + i, f = FIELDS.find(x => x.k === k), num = $('p-' + k), rng = $('r-' + k);
-    f.max = hi; num.max = rng.max = hi;
-    if (P[k] > hi) P[k] = hi;
-    rng.value = P[k];
-    if (document.activeElement !== num) num.value = P[k];
-    $('row-' + k).hidden = !active || i > P.tieN;
-  }
+// Meldt waar de koppelingen de boom raken, of waarom een kolomvlak geen koker krijgt
+function tieInfo(d) {
+  const note = $('tie-note');
+  if (!P.ties || !P.column || d.spil) { note.textContent = ''; return; }
+  const all = tieCandidates(d);
+  let k = 0;
+  const parts = all.map(t => t.ok
+    ? `Koppeling ${++k}: hart op ${nl(t.y)} mm, bij trede ${t.tread}.`
+    : `Bij trede ${t.tread} past geen koppeling: ${t.why}.`);
+  note.textContent = all.length ? parts.join(' ')
+    : 'Geen enkel kolomvlak wijst naar de binnenboom. Verplaats de kolom om de trap te kunnen koppelen.';
 }
 
 // Een zware drager hoort bij een bestaande trede; alleen de gekozen dragers zijn zichtbaar.
@@ -1061,9 +1045,9 @@ function limitHeavy() {
 function update() {
   queued = false;
   limitLoop();
-  limitTies();
   limitHeavy();
   const d = derive();
+  tieInfo(d);
   $('col-note').textContent = `Bovenkant kolom op ${nl(d.colTop)} mm. Daarboven: plaat ${PLATE}, HEA160 liggend (${HEA.h}), hoeklijn ${HOEK} en de vloeropbouw.`;
   renderChecks(d);
   flagLoads();
@@ -1075,7 +1059,8 @@ function schedule() { if (!queued) { queued = true; requestAnimationFrame(update
 const STEEL = { E: 210000, G: 80770, g: 78.5e-6 };  // N/mm2, N/mm2, N/mm3
 const OAK = { E: 11000, G: 700, g: 7.5e-6 };
 const RAIL_W = 0.025;                               // handregel buis 42,4 x 2,6: N per mm
-const TIE_SEC = { A: 1900, I: 2.866e6, J: 4.29e6 }; // koker 100x100x5
+const BOX_SEC = { A: 1900, I: 2.866e6, J: 4.29e6 };              // koker 100x100x5, zware tredendrager
+const TIE_SEC = { A: 2900, Iv: 1.52e7, Ih: 5.12e6, J: 1.18e7 };  // koker 200x100x5, koppeling (200 hoog)
 const COL_SEC = { A: 9600, I: 9.23e7, J: 1.38e8 };  // koker 250x250x10
 
 // Lineair ruimtelijk raamwerk. Elke knoop heeft zes vrijheidsgraden (ux, uy, uz, rx, ry, rz); elke staaf
@@ -1227,8 +1212,8 @@ function computeLoads(q, heavyTreads) {
     ref: [0, 1, 0],
   };
   // Zware drager: dezelfde trede met een koker 100x100x5 eronder
-  const treadHeavy = { ...tread, A: tread.A + TIE_SEC.A, Iy: tread.Iy + TIE_SEC.I, Iz: tread.Iz + TIE_SEC.I, J: tread.J + TIE_SEC.J };
-  const wK = TIE_SEC.A * (d.rOut - d.rIn) * STEEL.g;
+  const treadHeavy = { ...tread, A: tread.A + BOX_SEC.A, Iy: tread.Iy + BOX_SEC.I, Iz: tread.Iz + BOX_SEC.I, J: tread.J + BOX_SEC.J };
+  const wK = BOX_SEC.A * (d.rOut - d.rIn) * STEEL.g;
   const area = 0.5 * (d.rOut ** 2 - d.rIn ** 2) * d.dA;
   const rc = 2 / 3 * (d.rOut ** 3 - d.rIn ** 3) / (d.rOut ** 2 - d.rIn ** 2);
   const share = (rc - rI) / (rO - rI);
@@ -1256,7 +1241,7 @@ function computeLoads(q, heavyTreads) {
     fixed.add(cn[cn.length - 1] * 6); fixed.add(cn[cn.length - 1] * 6 + 2);
     const stiff = { A: 1e5, Iy: 1e9, Iz: 1e9, J: 1e9 };
     const rigidV = steel({ ...stiff, ref: [1, 0, 0] }), rigidH = steel({ ...stiff, ref: [0, 1, 0] });
-    const ts = steel({ A: TIE_SEC.A, Iy: TIE_SEC.I, Iz: TIE_SEC.I, J: TIE_SEC.J, ref: [0, 1, 0] });
+    const ts = steel({ A: TIE_SEC.A, Iy: TIE_SEC.Iv, Iz: TIE_SEC.Ih, J: TIE_SEC.J, ref: [0, 1, 0] });
     for (const t of ties) {
       const sn = inner.at(t.f), s = nodes[sn];
       let end = sn;
@@ -1295,7 +1280,7 @@ function computeLoads(q, heavyTreads) {
         Mn: (f[3] * n[0] + f[5] * n[1]) / 1e6, Ms: (f[3] * s2[0] + f[5] * s2[1]) / 1e6, Mv: f[4] / 1e6,
       };
     };
-    rows.push({ group: 'kolom', id: 'K' + tie.i, name: `Koppeling ${tie.i} op ${nl(tie.y)} mm${tie.corner ? ', hoekplaat' : ''}`, G: c(0), Q: c(1), tie });
+    rows.push({ group: 'kolom', id: 'K' + tie.i, name: `Koppeling ${tie.i} op ${nl(tie.y)} mm, trede ${tie.tread}`, G: c(0), Q: c(1), tie });
   }
   let sag = 0;
   for (let i = 0; i < nodes.length; i++) sag = Math.max(sag, -(sol.U[0][i * 6 + 1] + sol.U[1][i * 6 + 1]));
@@ -1317,23 +1302,12 @@ function computeLoads(q, heavyTreads) {
   };
 }
 
-// Krachten in de twee ankers van een kolomplaat. Invoer in kN en kNm in de assen van de plaat.
-// Vlakke plaat (n haaks op de plaat, s horizontaal): ankers links en rechts op halve hoogte. Trek: de
-// normaalkracht over twee ankers, het moment om de verticale as als koppel tussen de ankers, en het moment
-// om de horizontale as als koppel tussen de ankerlijn en de plaatrand die op de kolom drukt. Afschuiving:
+// Krachten in de twee ankers van een kolomplaat. Invoer in kN en kNm in de assen van de plaat (n haaks op de
+// plaat, s horizontaal, v verticaal); de ankers zitten links en rechts op halve hoogte. Trek: de normaalkracht
+// over twee ankers, het moment om de verticale as als koppel tussen de ankers, en het moment om de
+// horizontale as als koppel tussen de ankerlijn en de plaatrand die op de kolom drukt. Afschuiving:
 // dwarskracht over twee ankers plus het wringend moment als verticaal koppel tussen de ankers.
-// Hoekplaat (n en s zijn de normalen van de twee kolomvlakken): op elk vlak een anker. Elk anker neemt de
-// trek haaks op zijn eigen vlak, het moment dat zijn been van de kolom wil kantelen (hefboomsarm een halve
-// plaathoogte) en het moment om de verticale as (hefboomsarm de afstand van het anker tot de hoek). Druk
-// gaat via het been op het kolomvlak; de verticale kracht wordt over de twee ankers verdeeld.
-function anchorForces(c, corner) {
-  if (corner) {
-    const tip = 1000 / (CP.h / 2), tw = Math.abs(c.Mv) * 1000 / CP.ac;
-    return {
-      trek: Math.max(Math.max(0, c.Fn) + Math.abs(c.Ms) * tip + tw, Math.max(0, c.Fs) + Math.abs(c.Mn) * tip + tw),
-      schuif: Math.abs(c.Fv) / 2,
-    };
-  }
+function anchorForces(c) {
   const trek = Math.max(0, c.Fn / 2 + Math.abs(c.Mv) * 1000 / (2 * CP.a) + Math.abs(c.Ms) * 1000 / CP.h);
   const tw = c.Mn * 1000 / (2 * CP.a);
   const schuif = Math.max(Math.hypot(c.Fs / 2, c.Fv / 2 + tw), Math.hypot(c.Fs / 2, c.Fv / 2 - tw));
@@ -1392,13 +1366,13 @@ function loadFigures(res, total) {
       `<rect class="f-col" x="-125" y="${Y(d.colTop)}" width="250" height="${d.colTop.toFixed(0)}"/>` +
       `<rect class="f-col" x="-200" y="${Y(d.colTop + PLATE + HEA.h)}" width="900" height="${PLATE + HEA.h}"/>`;
     for (const r of tieRows) {
-      const t = total(r), an = anchorForces(t, r.tie.corner), y = r.tie.y, H = Math.hypot(t.Hx, t.Hz), x1 = 125 + CP.t, x2 = x1 + 520;
-      const dir = t.V >= 0 ? 1 : -1, ax = x1 + 260, ay = top - y, len = 16 * u2, w = 4 * u2;
-      e += `<rect class="f-tie-box" x="${x1}" y="${Y(y + 50)}" width="${x2 - x1}" height="100"/>` +
+      const t = total(r), an = anchorForces(t), y = r.tie.y, H = Math.hypot(t.Hx, t.Hz), x1 = 125 + CP.t, x2 = x1 + 520;
+      const dir = t.V >= 0 ? 1 : -1, ax = x1 + 260, ay = top - y, len = 16 * u2, w = 4 * u2, hh = TIE.h / 2;
+      e += `<rect class="f-tie-box" x="${x1}" y="${Y(y + hh)}" width="${x2 - x1}" height="${TIE.h}"/>` +
         `<rect class="f-boom-box" x="125" y="${Y(y + CP.h / 2)}" width="${CP.t}" height="${CP.h}"/>` +
-        `<rect class="f-boom-box" x="${x2}" y="${Y(y + 110)}" width="14" height="220"/>` +
-        `<line class="f-arrow" x1="${ax}" y1="${(ay - dir * (50 + len + 2.2 * w)).toFixed(0)}" x2="${ax}" y2="${(ay - dir * (50 + 2.2 * w)).toFixed(0)}"/>` +
-        `<polygon class="f-head" points="${pts([[ax, ay - dir * 50], [ax - w, ay - dir * (50 + 2.2 * w)], [ax + w, ay - dir * (50 + 2.2 * w)]])}"/>` +
+        `<rect class="f-boom-box" x="${x2}" y="${Y(y + P.boomIn / 2)}" width="${WT}" height="${P.boomIn}"/>` +
+        `<line class="f-arrow" x1="${ax}" y1="${(ay - dir * (hh + len + 2.2 * w)).toFixed(0)}" x2="${ax}" y2="${(ay - dir * (hh + 2.2 * w)).toFixed(0)}"/>` +
+        `<polygon class="f-head" points="${pts([[ax, ay - dir * hh], [ax - w, ay - dir * (hh + 2.2 * w)], [ax + w, ay - dir * (hh + 2.2 * w)]])}"/>` +
         `<text class="f-txt" font-size="${fs2.toFixed(0)}" x="${x2 + 150}" y="${(ay - 0.25 * fs2).toFixed(0)}"><tspan class="f-id">${r.id}</tspan> V ${f1(t.V)} · H ${f1(H)} kN` +
         `<tspan x="${x2 + 150}" dy="${(1.25 * fs2).toFixed(0)}">anker: trek ${f1(an.trek)} · afschuiving ${f1(an.schuif)}</tspan></text>`;
     }
@@ -1497,13 +1471,13 @@ function runLoads() {
   const titles = {
     onder: `Vloer beneden: voetplaten ${SUP_DROP} mm onder het vloerpeil`,
     boven: `Vloer boven: handjes op de kanaalplaat, ${SUP_DROP} mm onder het vloerpeil`,
-    kolom: 'Kolom: koppelingen met een plaat of hoekplaat op de kolom en twee ankers',
+    kolom: 'Kolom: koppelingen, koker 200×100 haaks op de kolom, plaat met twee ankers',
   };
   let html = '', group = null;
   const tot = { G: 0, Q: 0 };
   for (const r of res.rows) {
     if (r.group !== group) { group = r.group; html += `<tr class="grp"><th colspan="9" scope="colgroup">${titles[group]}</th></tr>`; }
-    const t = total(r), an = r.tie ? anchorForces(t, r.tie.corner) : null;
+    const t = total(r), an = r.tie ? anchorForces(t) : null;
     tot.G += r.G.V; tot.Q += r.Q.V;
     html += `<tr><th scope="row"><b>${r.id}</b> ${r.name}</th><td>${f2(r.G.V)}</td><td>${f2(r.Q.V)}</td><td class="tot">${f2(t.V)}</td>` +
       `<td>${f2(Math.hypot(t.Hx, t.Hz))}</td><td>${an ? f2(t.N) : ''}</td><td>${an ? f2(Math.hypot(t.Mn, t.Ms, t.Mv)) : ''}</td>` +
@@ -1517,7 +1491,7 @@ function runLoads() {
   $('load-note').textContent =
     `Karakteristieke waarden zonder belastingfactoren, bij q = ${nl(res.q, 1)} kN/m² op alle treden. V is positief als de trap ` +
     `op het steunpunt drukt, negatief als hij eraan trekt. H is de horizontale kracht, axiaal is positief bij trek in de koker, ` +
-    `M is het buigend moment van de koker op de plaat. Elke plaat heeft twee ankers, links en rechts op halve hoogte. Komt de koker bij een hoek van de kolom uit, dan is het een hoekplaat om die hoek met op elk vlak een anker. De trek per anker bevat ook het koppel tussen het anker en de plaatrand die op de kolom drukt. Rekenmodel: bomen, treden, kokers en kolom als staven; voetplaten en ` +
+    `M is het buigend moment van de koker op de plaat. Elke koppeling is een koker 200×100×5 haaks uit een kolomvlak, op een plaat van ${CP.w}×${CP.h} met twee ankers, links en rechts op halve hoogte (hart op hart ${2 * CP.a} mm). De trek per anker bevat ook het koppel tussen het anker en de plaatrand die op de kolom drukt. Rekenmodel: bomen, treden, kokers en kolom als staven; voetplaten en ` +
     `handjes scharnierend; kokers star aan de kolomplaat en de boom. De boom rekent mee met zijn doorsnede haaks op de helling: ` +
     `binnen ${nl(res.depthIn)} mm, buiten ${nl(res.depthOut)} mm hoog. ${res.heavy.length ? 'Zware tredendragers bij trede ' + res.heavy.join(', ') + '. ' : 'Geen zware tredendragers. '}Grootste zakking in het model: ${nl(res.sag, 1)} mm; grootste moment in de buitenboom: ${nl(res.mOut, 1)} kNm. ` +
     `Indicatief, geen vervanging van de berekening van de constructeur.`;

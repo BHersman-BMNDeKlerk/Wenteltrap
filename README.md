@@ -19,7 +19,8 @@ lettertypen van een CDN, dus er is een internetverbinding nodig.
   kolom zitten een plaat van 16 mm, een liggende HEA160 langs de vloerrand en een hoeklijn van 12 mm; de
   bovenkant van de kolom volgt uit de verdiepingshoogte.
 - **Koppeling aan kolom**: kokers 200x100x5 haaks uit de kolomvlakken die naar de trap wijzen (bij een kolom
-  in het trapgat zijn dat er twee). Waar ze de binnenboom raken, volgt uit de stand van de kolom.
+  in het trapgat zijn dat er twee), onder de treden door tot aan de buitenboom. De bovenkant ligt tegen de
+  laagste trede op hun weg; waar een boom hoger ligt, vult een opstand het verschil.
 - **Aanzichten**: 3D, bovenaanzicht en vooraanzicht.
 - **Standaardwaarden herstellen** zet alle parameters terug.
 - **IFC exporteren** slaat het model op als IFC4-bestand, zonder de vloer.
@@ -32,7 +33,7 @@ lettertypen van een CDN, dus er is een internetverbinding nodig.
 - Standaard: treden R = 1500 mm, binnenstraal 400 mm, looplijn 400 mm uit de binnenzijde,
   verdiepingshoogte 3750 mm, 18 optreden, leuninghoogte 1000 mm, vloeropbouw 330 mm
   (bovenkant kolom op 3240 mm).
-- Standaard vier zware tredendragers, bij trede 1, 2, 17 en 18.
+- Standaard vier zware tredendragers, bij trede 1, 5, 13 en 14.
 
 ## Controle
 
@@ -52,7 +53,7 @@ verouderd gemarkeerd.
 
 - Rekenmodel: lineair ruimtelijk raamwerk met de bomen, treden, kokers en kolom als staven.
 - Voetplaten en handjes liggen 70 mm onder het vloerpeil en zijn scharnierend; de kokers zitten star aan
-  een plaat op de kolom en aan de binnenboom.
+  een plaat op de kolom en aan beide bomen.
 - Elke koppeling heeft op de kolom een plaat van 250x300, zo breed als de kolom, met links en rechts een
   anker. De tabel geeft per koppeling de grootste trek en afschuiving per anker.
 - Bij de tabel staat een schema: een plattegrond met de krachten op de vloeren en een aanzicht van de

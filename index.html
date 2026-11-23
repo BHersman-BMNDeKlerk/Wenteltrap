@@ -348,7 +348,9 @@ body {
         <button type="button" id="view-front" data-val="front">Voor</button>
       </div>
       <div class="export" id="export" hidden>
-        <button type="button" id="btn-ifc" title="IFC4-bestand, zonder de vloer">IFC exporteren</button>
+        <button type="button" id="btn-ifc" data-kind="all" title="Trap met kolom, HEA160 en hoeklijn onder de vloer; zonder de vloer">IFC compleet</button>
+        <button type="button" id="btn-ifc-stair" data-kind="stair" title="Alleen de trap, zonder het bestaande staal: kolom, HEA160 en hoeklijn onder de vloer">IFC alleen trap</button>
+        <button type="button" id="btn-ifc-frame" data-kind="frame" title="Systeemlijnen van de trap uit het rekenmodel, als IFC-analysemodel">IFC draadmodel trap</button>
         <p id="ifc-status" role="status"></p>
       </div>
       <p class="hint" id="hint">Slepen draait · scrollen of knijpen zoomt · rechtermuisknop verschuift</p>
@@ -1255,7 +1257,7 @@ function computeLoads(q, heavyTreads) {
 
   // Een boom: plaat op zijn kant langs de schroeflijn. De doorsnede haaks op de boom is de verticale
   // hoogte maal de cosinus van de hellingshoek.
-  const stringer = (r, hgt, extra, rail) => {
+  const stringer = (r, hgt, extra, rail, name) => {
     const bm = boomLines(d, hgt);
     const dep = hgt * Math.cos(Math.atan2(d.h, r * d.dA));
     const sec = steel({ A: dep * WT, Iz: WT * dep ** 3 / 12, Iy: dep * WT ** 3 / 12, J: dep * WT ** 3 / 3 });
@@ -1268,7 +1270,7 @@ function computeLoads(q, heavyTreads) {
     const lens = [];
     for (let k = 0; k < last; k++) {
       const a = nodes[ids[k]], b = nodes[ids[k + 1]], u = B.radial((fs[k] + fs[k + 1]) / 2);
-      els.push({ i: ids[k], j: ids[k + 1], ...sec, ref: [u.x, u.y, u.z] });
+      els.push({ i: ids[k], j: ids[k + 1], ...sec, ref: [u.x, u.y, u.z], name, prof: { name: `PL${Math.round(dep)}x${WT}`, x: WT, y: dep, note: `boom ${hgt} mm verticaal gemeten` } });
       lens.push(Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]));
     }
     const len = lens.reduce((a, b) => a + b, 0);
@@ -1280,8 +1282,8 @@ function computeLoads(q, heavyTreads) {
     return { ids, at, depth: dep };
   };
   const rI = d.rIn - WT / 2, rO = d.rOut + WT / 2;
-  const inner = stringer(rI, P.boomIn, ties.map(t => t.fIn), P.railIn);
-  const outer = stringer(rO, P.boomOut, ties.map(t => t.fOut), P.railOut);
+  const inner = stringer(rI, P.boomIn, ties.map(t => t.fIn), P.railIn, 'Binnenboom');
+  const outer = stringer(rO, P.boomOut, ties.map(t => t.fOut), P.railOut, 'Buitenboom');
 
   // Treden: eiken op de stalen tredendrager, als staaf tussen de bomen. Het gewicht en de veranderlijke
   // belasting gaan naar de twee bomen volgens de ligging van het zwaartepunt van de trede.
@@ -1307,7 +1309,8 @@ function computeLoads(q, heavyTreads) {
   for (let i = 1; i <= d.nT; i++) {
     const f = (i - 0.5) * d.dA, ni = inner.at(f), no = outer.at(f);
     const big = heavy.has(i);
-    els.push({ i: ni, j: no, ...(big ? treadHeavy : tread) });
+    els.push({ i: ni, j: no, ...(big ? treadHeavy : tread), name: 'Trede ' + nr(i),
+      prof: { name: `Trede eiken ${d.t} op drager ${CARRIER}${big ? ' + koker 100x100x5' : ''}`, x: Math.round(bw), y: d.t + CARRIER, note: 'gemiddelde tredebreedte' } });
     if (big) { FG[no] += wK / 2; FG[ni] += wK / 2; }
     FG[no] += wG * share; FG[ni] += wG * (1 - share);
     FQ[no] += wQ * share; FQ[ni] += wQ * (1 - share);
@@ -1315,13 +1318,13 @@ function computeLoads(q, heavyTreads) {
 
   // Kolom met koppelingen. De kolom staat scharnierend op de vloer en wordt bovenaan horizontaal
   // gehouden door de vloer; de kokers zitten star aan de kolom en aan de binnenboom.
-  const tieEls = [];
+  const tieEls = [], plates = [];
   if (ties.length) {
     const u = B.radial(d.sweep).multiplyScalar(P.colX).add(B.tangent(d.sweep).multiplyScalar(P.colY));
     const levels = [...new Set([0, ...ties.map(t => Math.round(t.y * 100) / 100), d.colTop])].sort((a, b) => a - b);
     const cn = levels.map(y => raw(u.x, y, u.z));
     const cs = steel({ A: COL_SEC.A, Iy: COL_SEC.I, Iz: COL_SEC.I, J: COL_SEC.J, ref: [1, 0, 0] });
-    for (let k = 0; k < cn.length - 1; k++) els.push({ i: cn[k], j: cn[k + 1], ...cs });
+    for (let k = 0; k < cn.length - 1; k++) els.push({ i: cn[k], j: cn[k + 1], ...cs, kind: 'kolom' });
     pin(cn[0]); fixed.add(cn[0] * 6 + 4);
     fixed.add(cn[cn.length - 1] * 6); fixed.add(cn[cn.length - 1] * 6 + 2);
     const stiff = { A: 1e5, Iy: 1e9, Iz: 1e9, J: 1e9 };
@@ -1333,15 +1336,18 @@ function computeLoads(q, heavyTreads) {
         const s = nodes[sn];
         if (Math.abs(s[1] - t.y) <= 1) return sn;
         const m = raw(s[0], t.y, s[2]);
-        els.push({ i: sn, j: m, ...rigidV });
+        els.push({ i: sn, j: m, ...rigidV, name: `Verbinding ${t.name.toLowerCase()} met ${sn === inner.at(t.fIn) ? 'binnenboom' : 'buitenboom'}`,
+          prof: { name: 'PL150x10 (star in de berekening)', x: WT, y: 150, note: 'opstand of las tussen koker en boom' }, rigid: true });
         return m;
       };
       const pi = link(inner.at(t.fIn)), po = link(outer.at(t.fOut));
       // Van de kolomas star naar het midden van de plaat; daar begint de koker
       const plate = raw(t.S[0], t.y, t.S[1]);
-      els.push({ i: cn[levels.indexOf(Math.round(t.y * 100) / 100)], j: plate, ...rigidH });
-      const el = { i: plate, j: pi, ...ts };
-      els.push(el, { i: pi, j: po, ...ts });
+      els.push({ i: cn[levels.indexOf(Math.round(t.y * 100) / 100)], j: plate, ...rigidH, kind: 'kolom' });
+      const tp = { name: `K${TIE.h}x${TIE.b}x5`, hollow: true, x: TIE.b, y: TIE.h, w: 5 };
+      const el = { i: plate, j: pi, ...ts, name: t.name, prof: tp };
+      els.push(el, { i: pi, j: po, ...ts, name: t.name, prof: tp });
+      plates.push({ node: plate, name: 'Aansluiting ' + t.name.toLowerCase() + ' op kolom' });
       // Eigen gewicht van de koker; het deel bij de plaat gaat rechtstreeks de kolom in en telt mee bij de koppeling
       const len = (a, b) => Math.hypot(nodes[b][0] - nodes[a][0], nodes[b][2] - nodes[a][2]);
       const w = TIE_SEC.A * STEEL.g, L1 = len(plate, pi), L2 = len(pi, po);
@@ -1396,6 +1402,14 @@ function computeLoads(q, heavyTreads) {
       return m / 1e6;
     })(),
     depthIn: inner.depth, depthOut: outer.depth,
+    // Het rekenmodel zelf, voor het draadmodel: knopen in mm (three.js-assen), staven en steunpunten
+    frame: {
+      nodes, els, plates,
+      supports: [
+        ['Voetplaat binnenboom', inner.ids[0]], ['Voetplaat buitenboom', outer.ids[0]],
+        ['Hoeklijn bij binnenboom', inner.ids[inner.ids.length - 1]], ['Hoeklijn bij buitenboom', outer.ids[outer.ids.length - 1]],
+      ],
+    },
   };
 }
 
@@ -1609,10 +1623,9 @@ function flagLoads() {
 }
 
 /* ------------------------------------------------------------------ IFC-export */
-// Schrijft het model als IFC4 (STEP-tekst): elke benoemde mesh wordt een IfcTriangulatedFaceSet,
-// in mm, met de Z-as omhoog. De vloer zit er niet in.
-function buildIfc() {
-  const d = derive();
+// Gedeelde opbouw van een IFC4-bestand (STEP-tekst) in mm met de Z-as omhoog: kop, project, terrein,
+// gebouw en bouwlaag. finish() geeft de tekst van het hele bestand.
+function ifcBase(fileName, view) {
   const L = [];
   let id = 0;
   const E = body => { L.push('#' + (++id) + '=' + body + ';'); return '#' + id; };
@@ -1624,16 +1637,14 @@ function buildIfc() {
     const b = crypto.getRandomValues(new Uint8Array(22));
     return "'" + Array.from(b, (x, i) => c[i ? x & 63 : x & 3]).join('') + "'";
   };
-
   const person = E("IFCPERSON($,'Onbekend',$,$,$,$,$,$)");
   const org = E("IFCORGANIZATION($,'Wenteltrap generator',$,$,$)");
   const po = E(`IFCPERSONANDORGANIZATION(${person},${org},$)`);
   const app = E(`IFCAPPLICATION(${org},'1.0','Wenteltrap generator','WTG')`);
-  const oh = E(`IFCOWNERHISTORY(${po},${app},$,.ADDED.,$,$,$,${Math.floor(Date.now() / 1000)})`);
+  const oh = E(`IFCOWNERHISTORY(${po},${app},$,.NOTDEFINED.,$,$,$,${Math.floor(Date.now() / 1000)})`);
   const origin = E('IFCCARTESIANPOINT((0.,0.,0.))');
   const wcs = E(`IFCAXIS2PLACEMENT3D(${origin},${E('IFCDIRECTION((0.,0.,1.))')},${E('IFCDIRECTION((1.,0.,0.))')})`);
   const ctx = E(`IFCGEOMETRICREPRESENTATIONCONTEXT($,'Model',3,1.E-5,${wcs},$)`);
-  const bodyCtx = E(`IFCGEOMETRICREPRESENTATIONSUBCONTEXT('Body','Model',*,*,*,*,${ctx},$,.MODEL_VIEW.,$)`);
   const units = E('IFCUNITASSIGNMENT((' + [
     E('IFCSIUNIT(*,.LENGTHUNIT.,.MILLI.,.METRE.)'), E('IFCSIUNIT(*,.AREAUNIT.,$,.SQUARE_METRE.)'),
     E('IFCSIUNIT(*,.VOLUMEUNIT.,$,.CUBIC_METRE.)'), E('IFCSIUNIT(*,.PLANEANGLEUNIT.,$,.RADIAN.)'),
@@ -1646,6 +1657,24 @@ function buildIfc() {
   const storey = E(`IFCBUILDINGSTOREY(${G()},${oh},'Peil 0',$,$,${lpStorey},$,$,.ELEMENT.,0.)`);
   const aggregate = (whole, parts) => E(`IFCRELAGGREGATES(${G()},${oh},$,$,${whole},(${parts.join(',')}))`);
   aggregate(project, [site]); aggregate(site, [building]); aggregate(building, [storey]);
+  const finish = () => {
+    const stamp = new Date().toISOString().slice(0, 19);
+    return [
+      'ISO-10303-21;', 'HEADER;',
+      `FILE_DESCRIPTION(('ViewDefinition [${view}]'),'2;1');`,
+      `FILE_NAME(${S(fileName)},'${stamp}',(''),(''),'Wenteltrap generator','Wenteltrap generator','');`,
+      "FILE_SCHEMA(('IFC4'));", 'ENDSEC;', 'DATA;', ...L, 'ENDSEC;', 'END-ISO-10303-21;', '',
+    ].join('\n');
+  };
+  return { E, S, R, G, oh, ctx, wcs, place, lpStorey, storey, aggregate, finish };
+}
+
+// Schrijft het model als IFC4: elke benoemde mesh wordt een IfcTriangulatedFaceSet. De vloer zit er
+// niet in. Met stairOnly vervalt ook het bestaande staal: kolom, HEA160 en hoeklijn onder de vloer.
+function buildIfc(stairOnly = false, fileName = 'wenteltrap.ifc') {
+  const d = derive();
+  const { E, S, R, G, oh, ctx, place, lpStorey, storey, aggregate, finish } = ifcBase(fileName, 'ReferenceView_V1.2');
+  const bodyCtx = E(`IFCGEOMETRICREPRESENTATIONSUBCONTEXT('Body','Model',*,*,*,*,${ctx},$,.MODEL_VIEW.,$)`);
 
   // Materiaal en kleur per three.js-materiaal
   const looks = new Map();
@@ -1684,7 +1713,7 @@ function buildIfc() {
   const groups = new Map();
   for (const m of model.children) {
     const p = m.userData.part;
-    if (!p || !looks.has(m.material)) continue;
+    if (!p || !looks.has(m.material) || (stairOnly && !p.inStair)) continue;
     if (!groups.has(p)) groups.set(p, []);
     groups.get(p).push(m);
   }
@@ -1721,13 +1750,79 @@ function buildIfc() {
     prop('LooplijnStraal', 'IFCLENGTHMEASURE', d.rl), prop('Tredendikte', 'IFCLENGTHMEASURE', d.t),
   ]);
 
-  const stamp = new Date().toISOString().slice(0, 19);
-  return [
-    'ISO-10303-21;', 'HEADER;',
-    "FILE_DESCRIPTION(('ViewDefinition [ReferenceView_V1.2]'),'2;1');",
-    `FILE_NAME('wenteltrap.ifc','${stamp}',(''),(''),'Wenteltrap generator','Wenteltrap generator','');`,
-    "FILE_SCHEMA(('IFC4'));", 'ENDSEC;', 'DATA;', ...L, 'ENDSEC;', 'END-ISO-10303-21;', '',
-  ].join('\n');
+  return finish();
+}
+
+// Draadmodel van alleen de trap: de systeemlijnen uit het rekenmodel als IFC4-analysemodel
+// (IfcStructuralAnalysisModel). Bomen, treden en kokers zijn staven met hun profiel; de voetplaten en de
+// hoeklijn zijn scharnierende steunpunten, de aansluiting van de koker op de kolom is ingeklemd. De kolom
+// zelf en het staal onder de vloer zitten er niet in.
+function buildIfcFrame(fileName = 'wenteltrap-draadmodel.ifc') {
+  const res = computeLoads(0);
+  if (!res) return null;
+  const { nodes, els, plates, supports } = res.frame;
+  const { E, S, R, G, oh, ctx, place, lpStorey, storey, finish } = ifcBase(fileName, 'StructuralAnalysisView');
+  const refCtx = E(`IFCGEOMETRICREPRESENTATIONSUBCONTEXT('Reference','Model',*,*,*,*,${ctx},$,.MODEL_VIEW.,$)`);
+  const toIfc = v => [v[0], -v[2], v[1]];                       // three.js (x, y omhoog, z) -> IFC (x, y, z omhoog)
+  const lp = place(lpStorey);
+  const model = E(`IFCSTRUCTURALANALYSISMODEL(${G()},${oh},'Draadmodel trap',${S('Systeemlijnen uit het rekenmodel van de wenteltrap generator')},$,.LOADING_3D.,$,$,$,${lp})`);
+
+  // Knopen die bij de trap horen, met hun steunpunt
+  const members = els.filter(el => el.kind !== 'kolom');
+  const used = new Set();
+  members.forEach(el => { used.add(el.i); used.add(el.j); });
+  const pinned = E(`IFCBOUNDARYNODECONDITION('Scharnier',IFCBOOLEAN(.T.),IFCBOOLEAN(.T.),IFCBOOLEAN(.T.),IFCBOOLEAN(.F.),IFCBOOLEAN(.F.),IFCBOOLEAN(.F.))`);
+  const fixed = E(`IFCBOUNDARYNODECONDITION('Ingeklemd',IFCBOOLEAN(.T.),IFCBOOLEAN(.T.),IFCBOOLEAN(.T.),IFCBOOLEAN(.T.),IFCBOOLEAN(.T.),IFCBOOLEAN(.T.))`);
+  const support = new Map();
+  supports.forEach(([name, n]) => support.set(n, { name, cond: pinned }));
+  plates.forEach(({ node, name }) => support.set(node, { name, cond: fixed }));
+  const vertex = new Map(), conn = new Map(), items = [];
+  let k = 0;
+  for (const n of [...used].sort((a, b) => a - b)) {
+    const p = toIfc(nodes[n]);
+    const vp = E(`IFCVERTEXPOINT(${E(`IFCCARTESIANPOINT((${p.map(R).join(',')}))`)})`);
+    vertex.set(n, vp);
+    const rep = E(`IFCTOPOLOGYREPRESENTATION(${refCtx},'Reference','Vertex',(${vp}))`);
+    const sp = support.get(n);
+    const c = E(`IFCSTRUCTURALPOINTCONNECTION(${G()},${oh},${S(sp ? sp.name : 'Knoop ' + (++k))},$,$,${lp},${E(`IFCPRODUCTDEFINITIONSHAPE($,$,(${rep}))`)},${sp ? sp.cond : '$'},$)`);
+    conn.set(n, c); items.push(c);
+  }
+
+  // Profielen en materialen
+  const steel = E("IFCMATERIAL('Staal',$,$)"), oak = E("IFCMATERIAL('Eiken met stalen tredendrager',$,$)");
+  const sets = new Map();
+  const profileSet = pr => {
+    if (sets.has(pr.name)) return sets.get(pr.name);
+    const def = pr.hollow
+      ? E(`IFCRECTANGLEHOLLOWPROFILEDEF(.AREA.,${S(pr.name)},$,${R(pr.x)},${R(pr.y)},${R(pr.w)},$,$)`)
+      : E(`IFCRECTANGLEPROFILEDEF(.AREA.,${S(pr.name)},$,${R(pr.x)},${R(pr.y)})`);
+    const mat = /^Trede/.test(pr.name) ? oak : steel;
+    const set = { id: E(`IFCMATERIALPROFILESET(${S(pr.name)},${pr.note ? S(pr.note) : '$'},(${E(`IFCMATERIALPROFILE(${S(pr.name)},$,${mat},${def},$,$)`)}),$)`), members: [] };
+    sets.set(pr.name, set);
+    return set;
+  };
+
+  // Staven: de profielhoogte (y) staat langs de lokale z-as; bij liggende staven is dat omhoog, bij de
+  // staande verbindingen langs de boom
+  const count = {};
+  for (const el of members) {
+    const a = nodes[el.i], b = nodes[el.j];
+    const dir = toIfc([b[0] - a[0], b[1] - a[1], b[2] - a[2]]), len = Math.hypot(...dir);
+    let axis = [0, 0, 1];
+    if (Math.abs(dir[2]) / len > 0.95) { const rx = toIfc(a); axis = [rx[1], -rx[0], 0]; const l = Math.hypot(axis[0], axis[1]) || 1; axis = [axis[0] / l, axis[1] / l, 0]; }
+    const edge = E(`IFCEDGE(${vertex.get(el.i)},${vertex.get(el.j)})`);
+    const rep = E(`IFCTOPOLOGYREPRESENTATION(${refCtx},'Reference','Edge',(${edge}))`);
+    count[el.name] = (count[el.name] || 0) + 1;
+    const name = /^Trede/.test(el.name) ? el.name : `${el.name} ${nr(count[el.name])}`;
+    const m = E(`IFCSTRUCTURALCURVEMEMBER(${G()},${oh},${S(name)},$,${el.rigid ? "'Star'" : '$'},${lp},${E(`IFCPRODUCTDEFINITIONSHAPE($,$,(${rep}))`)},.RIGID_JOINED_MEMBER.,${E(`IFCDIRECTION((${axis.map(R).join(',')}))`)})`);
+    items.push(m);
+    if (el.prof) profileSet(el.prof).members.push(m);
+    for (const n of [el.i, el.j]) E(`IFCRELCONNECTSSTRUCTURALMEMBER(${G()},${oh},$,$,${m},${conn.get(n)},$,$,$,$)`);
+  }
+  for (const set of sets.values()) E(`IFCRELASSOCIATESMATERIAL(${G()},${oh},$,$,(${set.members.join(',')}),${set.id})`);
+  E(`IFCRELASSIGNSTOGROUP(${G()},${oh},$,$,(${items.join(',')}),$,${model})`);
+  E(`IFCRELSERVICESBUILDINGS(${G()},${oh},$,$,${model},(${storey}))`);
+  return finish();
 }
 
 // Zip met één onverpakt bestand. De opslagfunctie van de viewer kent de extensie .ifc niet, een zip wel.
@@ -1753,14 +1848,16 @@ function zipStore(name, data) {
 }
 
 let downloads = null;
-async function exportIfc() {
+async function exportIfc(kind) {
   const status = $('ifc-status');
   if (!renderer) return;
   update(); // het model moet overeenkomen met de ingevulde waarden
-  const name = `wenteltrap-R${Math.round(derive().rOut)}`;
+  const name = `wenteltrap-R${Math.round(derive().rOut)}` + (kind === 'stair' ? '-trap' : kind === 'frame' ? '-draadmodel' : '');
+  const text = kind === 'frame' ? buildIfcFrame(name + '.ifc') : buildIfc(kind === 'stair', name + '.ifc');
+  if (!text) { status.textContent = 'Het draadmodel is er alleen voor de uitvoering met een binnenboom.'; return; }
   if (!downloads) {
     // Buiten claude.ai (bijvoorbeeld vanaf GitHub of lokaal) slaat de browser het bestand rechtstreeks op.
-    const url = URL.createObjectURL(new Blob([buildIfc()], { type: 'application/x-step' }));
+    const url = URL.createObjectURL(new Blob([text], { type: 'application/x-step' }));
     const a = document.createElement('a');
     a.href = url; a.download = name + '.ifc';
     document.body.appendChild(a); a.click(); a.remove();
@@ -1769,7 +1866,7 @@ async function exportIfc() {
     return;
   }
   try {
-    const zip = zipStore(name + '.ifc', new TextEncoder().encode(buildIfc()));
+    const zip = zipStore(name + '.ifc', new TextEncoder().encode(text));
     status.textContent = 'Bevestig het opslaan in het venster.';
     await downloads.save({ filename: name + '.zip', data: new Blob([zip]) });
     status.textContent = `Opgeslagen. Pak ${name}.zip uit voor het IFC-bestand.`;
@@ -1801,7 +1898,7 @@ function start(saved) {
   update();
   if (renderer) { resize(); setView(view); }
   // De exportknop verschijnt alleen waar de viewer bestanden kan opslaan.
-  $('btn-ifc').addEventListener('click', exportIfc);
+  for (const b of $('export').querySelectorAll('button')) b.addEventListener('click', () => exportIfc(b.dataset.kind));
   if (renderer && window.claude && window.claude.use) {
     window.claude.use('downloads').then(ns => { if (ns) { downloads = ns; $('export').hidden = false; } }, () => {});
   } else if (renderer) {
@@ -1817,7 +1914,7 @@ function start(saved) {
   });
 }
 
-window.wenteltrap = { ifc: buildIfc, zip: zipStore, frame: frameSolve, loads: computeLoads, bestHeavy };
+window.wenteltrap = { ifc: buildIfc, ifcFrame: buildIfcFrame, zip: zipStore, frame: frameSolve, loads: computeLoads, bestHeavy };
 
 const hot = window.claude && window.claude.hot;
 if (hot && hot.snapshot) hot.snapshot(() => ({ v: STATE_V, P, view }));

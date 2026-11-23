@@ -24,7 +24,12 @@ lettertypen van een CDN, dus er is een internetverbinding nodig.
   bovenste koker zijn los aan en uit te zetten.
 - **Aanzichten**: 3D, bovenaanzicht en vooraanzicht.
 - **Standaardwaarden herstellen** zet alle parameters terug.
-- **IFC exporteren** slaat het model op als IFC4-bestand, zonder de vloer.
+- **IFC-export**, steeds als IFC4 en zonder de vloer:
+  - *IFC compleet*: de trap met de kolom, de HEA160 en de hoeklijn onder de vloer.
+  - *IFC alleen trap*: de trap zonder het bestaande staal (kolom, HEA160 en hoeklijn onder de vloer).
+  - *IFC draadmodel trap*: de systeemlijnen van de trap uit het rekenmodel als IFC-analysemodel
+    (IfcStructuralAnalysisModel), met profielen en steunpunten: voetplaten en hoeklijn scharnierend,
+    de aansluiting van de koker op de kolom ingeklemd.
 
 ## Uitgangspunten
 

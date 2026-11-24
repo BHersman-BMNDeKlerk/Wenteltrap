@@ -32,6 +32,9 @@ lettertypen van een CDN, dus er is een internetverbinding nodig.
     de aansluiting van de koker op de kolom ingeklemd.
   - *DXF 3D trap* en *DXF 3D compleet*: het 3D-model als DXF R2000 (3DFACE-vlakken, eenheid mm), met een laag per
     onderdeel; alleen de trap, of met kolom, HEA160 en hoeklijn onder de vloer.
+  - *DXF draadmodel uitgebreid*: lijnen en punten van alle onderdelen, elk op een eigen laag: hartlijn,
+    boven- en onderkant van de bomen, hartlijn, omtrek en opleggingen van de treden, de koker met zijn
+    knopen, platen, ankers, leuning, steunpunten en ter referentie de bestaande kolom en HEA160.
   - *DXF draadmodel trap*: dezelfde systeemlijnen als 3D-lijnen in DXF (R2000, eenheid mm), met een laag per
     onderdeel en de steunpunten als punten. Bedoeld voor rekenpakketten die geen IFC-analysemodel inlezen.
 

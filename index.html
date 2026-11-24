@@ -353,6 +353,7 @@ body {
         <button type="button" id="btn-ifc-frame" data-kind="frame" title="Systeemlijnen van de trap uit het rekenmodel, als IFC-analysemodel">IFC draadmodel trap</button>
         <button type="button" id="btn-dxf-3d" data-kind="dxf3d" title="3D-model van alleen de trap als DXF (3DFACE), in mm, een laag per onderdeel">DXF 3D trap</button>
         <button type="button" id="btn-dxf-3d-all" data-kind="dxf3dall" title="3D-model met kolom, HEA160 en hoeklijn onder de vloer als DXF (3DFACE), in mm">DXF 3D compleet</button>
+        <button type="button" id="btn-dxf-wire" data-kind="dxfwire" title="Uitgebreid draadmodel: lijnen en punten van alle onderdelen, een laag per onderdeel, in mm">DXF draadmodel uitgebreid</button>
         <button type="button" id="btn-dxf-frame" data-kind="dxf" title="Systeemlijnen van de trap uit het rekenmodel als 3D-lijnen in DXF, in mm, een laag per onderdeel">DXF draadmodel trap</button>
         <p id="ifc-status" role="status"></p>
       </div>
@@ -1885,6 +1886,98 @@ function buildDxfFrame() {
   });
 }
 
+// Uitgebreid draadmodel als DXF: lijnen en punten van alle onderdelen, elk op een eigen laag, zodat de
+// constructeur zelf kiest waar hij krachten laat aangrijpen. Systeemlijnen, randen, opleggingen en
+// aansluitpunten van bomen, treden, koker en platen, de leuning, de steunpunten en ter referentie de
+// bestaande kolom en de HEA160.
+function buildDxfWireframe() {
+  const d = derive();
+  if (d.spil) return null;
+  const B = makeBuilder(d), toW = q => [q.x, -q.z, q.y];
+  const P3 = (r, f, y) => toW(B.pt(r, f, y));
+  const layers = [
+    ['BOOM_BINNEN_HARTLIJN', 5], ['BOOM_BINNEN_BOVENKANT', 151], ['BOOM_BINNEN_ONDERKANT', 151],
+    ['BOOM_BUITEN_HARTLIJN', 4], ['BOOM_BUITEN_BOVENKANT', 131], ['BOOM_BUITEN_ONDERKANT', 131],
+    ['TREDE_HARTLIJN', 2], ['TREDE_OMTREK_ONDERKANT', 42], ['TREDE_OPLEGGING', 30],
+    ['KOKER_HARTLIJN', 1], ['KOKER_KNOOP', 1], ['VERBINDING_KOKER_BOOM', 6],
+    ['KOLOMPLAAT', 8], ['ANKERS', 1], ['VOETPLAAT', 8], ['HOEKLIJN_BOVENAAN', 8], ['OPSTAND', 8],
+    ['HANDREGEL', 9], ['BALUSTERS', 9],
+    ['STEUNPUNT_VOETPLAAT', 3], ['STEUNPUNT_HOEKLIJN', 3], ['STEUNPUNT_KOLOM', 3],
+    ['BESTAAND_KOLOM_HARTLIJN', 252], ['BESTAAND_HEA160_HARTLIJN', 252],
+  ];
+  return dxfDocument(layers, add => {
+    const line = (layer, a, b) => add('LINE', layer, [[10, a[0]], [20, a[1]], [30, a[2]], [11, b[0]], [21, b[1]], [31, b[2]]]);
+    const point = (layer, a) => add('POINT', layer, [[10, a[0]], [20, a[1]], [30, a[2]]]);
+    const curve = (layer, fn, f0, f1) => {
+      const n = Math.max(2, Math.ceil(Math.abs(f1 - f0) / STEP));
+      let prev = fn(f0);
+      for (let k = 1; k <= n; k++) { const cur = fn(f0 + (f1 - f0) * k / n); line(layer, prev, cur); prev = cur; }
+    };
+    // Bomen: hartlijn, boven- en onderkant
+    for (const [side, r, hgt] of [['BINNEN', d.rIn - WT / 2, P.boomIn], ['BUITEN', d.rOut + WT / 2, P.boomOut]]) {
+      const bm = boomLines(d, hgt), fEnd = d.sweep - TOPL.t / r;
+      curve(`BOOM_${side}_HARTLIJN`, f => P3(r, f, (bm.bot(f) + bm.top(f)) / 2), 0, fEnd);
+      curve(`BOOM_${side}_BOVENKANT`, f => P3(r, f, bm.top(f)), 0, fEnd);
+      curve(`BOOM_${side}_ONDERKANT`, f => P3(r, f, bm.bot(f)), 0, fEnd);
+    }
+    // Treden: hartlijn van boom tot boom, omtrek aan de onderkant van de drager, opleggingen op de bomen
+    const rI = d.rIn - WT / 2, rO = d.rOut + WT / 2;
+    for (let i = 1; i <= d.nT; i++) {
+      const f0 = (i - 1) * d.dA, f1 = i * d.dA, fm = (f0 + f1) / 2, yu = i * d.h - d.t - CARRIER;
+      line('TREDE_HARTLIJN', P3(rI, fm, i * d.h - (d.t + CARRIER) / 2), P3(rO, fm, i * d.h - (d.t + CARRIER) / 2));
+      curve('TREDE_OMTREK_ONDERKANT', f => P3(d.rIn, f, yu), f0, f1);
+      curve('TREDE_OMTREK_ONDERKANT', f => P3(d.rOut, f, yu), f0, f1);
+      line('TREDE_OMTREK_ONDERKANT', P3(d.rIn, f0, yu), P3(d.rOut, f0, yu));
+      line('TREDE_OMTREK_ONDERKANT', P3(d.rIn, f1, yu), P3(d.rOut, f1, yu));
+      for (const f of [f0, fm, f1]) { point('TREDE_OPLEGGING', P3(rI, f, yu)); point('TREDE_OPLEGGING', P3(rO, f, yu)); }
+    }
+    // Koppelingen: hartlijn van de kolomplaat tot de buitenboom, knopen op de bomen, verbinding naar de boom
+    const bIn = boomLines(d, P.boomIn), bOut = boomLines(d, P.boomOut);
+    for (const t of tieLayout(d)) {
+      const W = (xz, y) => [xz[0], -xz[1], y];
+      const S = W(t.S, t.y), pi = W(t.p, t.y), po = W(t.po, t.y), end = W(t.end, t.y);
+      line('KOKER_HARTLIJN', S, pi); line('KOKER_HARTLIJN', pi, po); line('KOKER_HARTLIJN', po, end);
+      [S, pi, po].forEach(q => point('KOKER_KNOOP', q));
+      line('VERBINDING_KOKER_BOOM', pi, P3(rI, t.fIn, (bIn.bot(t.fIn) + bIn.top(t.fIn)) / 2));
+      line('VERBINDING_KOKER_BOOM', po, P3(rO, t.fOut, (bOut.bot(t.fOut) + bOut.top(t.fOut)) / 2));
+      point('STEUNPUNT_KOLOM', S);
+      for (const sa of [-CP.a, CP.a]) point('ANKERS', W([t.face[0] + t.s[0] * sa, t.face[1] + t.s[1] * sa], t.y));
+    }
+    // Platen en hoeklijn: de ribben van de onderdelen in het 3D-model
+    const v = new THREE.Vector3();
+    for (const m of model.children) {
+      const p = m.userData.part, g = m.geometry;
+      if (!p || g.type !== 'BoxGeometry') continue;
+      const layer = /^Voetplaat (binnen|buiten)boom/.test(p.name) ? 'VOETPLAAT' : /^Kolomplaat/.test(p.name) ? 'KOLOMPLAAT'
+        : p.name === 'Hoeklijn bovenaan' ? 'HOEKLIJN_BOVENAAN' : /^Opstand/.test(p.name) ? 'OPSTAND'
+        : /^Baluster/.test(p.name) ? 'BALUSTERS' : null;
+      if (!layer) continue;
+      m.updateMatrix();
+      const { width: a, height: b, depth: c } = g.parameters;
+      const at = (x, y, z) => toW(v.set(x, y, z).applyMatrix4(m.matrix));
+      if (layer === 'BALUSTERS') { line(layer, at(0, -b / 2, 0), at(0, b / 2, 0)); continue; }
+      const C = [];
+      for (const x of [-a / 2, a / 2]) for (const y of [-b / 2, b / 2]) for (const z of [-c / 2, c / 2]) C.push(at(x, y, z));
+      for (let i = 0; i < 8; i++) for (const bit of [1, 2, 4]) if (!(i & bit)) line(layer, C[i], C[i | bit]);
+    }
+    // Leuning
+    for (const [r, on] of [[d.rOut + WT + 6, P.railOut], [d.rIn - WT - 6, P.railIn]]) {
+      if (on) curve('HANDREGEL', f => P3(r, f, d.yN(f) + d.rail - TUBE / 2), 0, d.sweep);
+    }
+    // Steunpunten: bomen op de voetplaten en tegen de hoeklijn
+    point('STEUNPUNT_VOETPLAAT', P3(rI, 0, BASE_T - SUP_DROP)); point('STEUNPUNT_VOETPLAAT', P3(rO, 0, BASE_T - SUP_DROP));
+    point('STEUNPUNT_HOEKLIJN', P3(rI, d.sweep, d.H - SUP_DROP)); point('STEUNPUNT_HOEKLIJN', P3(rO, d.sweep, d.H - SUP_DROP));
+    // Ter referentie: bestaande kolom en HEA160
+    if (P.column) {
+      const u = B.radial(d.sweep), tt = B.tangent(d.sweep);
+      const at = (a, b, y) => toW(new THREE.Vector3(u.x * a + tt.x * b, y, u.z * a + tt.z * b));
+      line('BESTAAND_KOLOM_HARTLIJN', at(P.colX, P.colY, 0), at(P.colX, P.colY, d.colTop));
+      const yH = d.colTop + PLATE + HEA.h / 2;
+      line('BESTAAND_HEA160_HARTLIJN', at(P.colX - 150, P.colY, yH), at(d.rOut + 800, P.colY, yH));
+    }
+  });
+}
+
 // 3D-model als DXF (R2000, mm, Z omhoog): elk driehoekig vlak van het model is een 3DFACE, met een laag per
 // soort onderdeel. Net als de IFC zonder de vloer; met stairOnly ook zonder kolom, HEA160 en hoeklijn eronder.
 function buildDxf3d(stairOnly) {
@@ -1939,9 +2032,9 @@ async function exportIfc(kind) {
   if (!renderer) return;
   update(); // het model moet overeenkomen met de ingevulde waarden
   const name = `wenteltrap-R${Math.round(derive().rOut)}` + (kind === 'stair' || kind === 'dxf3d' ? '-trap'
-    : kind === 'frame' || kind === 'dxf' ? '-draadmodel' : kind === 'dxf3dall' ? '-compleet' : '');
+    : kind === 'frame' || kind === 'dxf' ? '-draadmodel' : kind === 'dxfwire' ? '-draadmodel-uitgebreid' : kind === 'dxf3dall' ? '-compleet' : '');
   const ext = /^dxf/.test(kind) ? '.dxf' : '.ifc';
-  const text = kind === 'dxf' ? buildDxfFrame() : kind === 'dxf3d' ? buildDxf3d(true) : kind === 'dxf3dall' ? buildDxf3d(false) : kind === 'frame' ? buildIfcFrame(name + ext) : buildIfc(kind === 'stair', name + ext);
+  const text = kind === 'dxf' ? buildDxfFrame() : kind === 'dxfwire' ? buildDxfWireframe() : kind === 'dxf3d' ? buildDxf3d(true) : kind === 'dxf3dall' ? buildDxf3d(false) : kind === 'frame' ? buildIfcFrame(name + ext) : buildIfc(kind === 'stair', name + ext);
   if (!text) { status.textContent = 'Het draadmodel is er alleen voor de uitvoering met een binnenboom.'; return; }
   if (!downloads) {
     // Buiten claude.ai (bijvoorbeeld vanaf GitHub of lokaal) slaat de browser het bestand rechtstreeks op.
@@ -2002,7 +2095,7 @@ function start(saved) {
   });
 }
 
-window.wenteltrap = { ifc: buildIfc, ifcFrame: buildIfcFrame, dxf: buildDxfFrame, dxf3d: buildDxf3d, zip: zipStore, frame: frameSolve, loads: computeLoads, bestHeavy };
+window.wenteltrap = { ifc: buildIfc, ifcFrame: buildIfcFrame, dxf: buildDxfFrame, dxf3d: buildDxf3d, dxfWire: buildDxfWireframe, zip: zipStore, frame: frameSolve, loads: computeLoads, bestHeavy };
 
 const hot = window.claude && window.claude.hot;
 if (hot && hot.snapshot) hot.snapshot(() => ({ v: STATE_V, P, view }));

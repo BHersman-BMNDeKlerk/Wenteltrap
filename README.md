@@ -30,6 +30,8 @@ lettertypen van een CDN, dus er is een internetverbinding nodig.
   - *IFC draadmodel trap*: de systeemlijnen van de trap uit het rekenmodel als IFC-analysemodel
     (IfcStructuralAnalysisModel), met profielen en steunpunten: voetplaten en hoeklijn scharnierend,
     de aansluiting van de koker op de kolom ingeklemd.
+  - *DXF draadmodel trap*: dezelfde systeemlijnen als 3D-lijnen in DXF (R12, mm), met een laag per
+    onderdeel en de steunpunten als punten. Bedoeld voor rekenpakketten die geen IFC-analysemodel inlezen.
 
 ## Uitgangspunten
 

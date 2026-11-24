@@ -351,6 +351,7 @@ body {
         <button type="button" id="btn-ifc" data-kind="all" title="Trap met kolom, HEA160 en hoeklijn onder de vloer; zonder de vloer">IFC compleet</button>
         <button type="button" id="btn-ifc-stair" data-kind="stair" title="Alleen de trap, zonder het bestaande staal: kolom, HEA160 en hoeklijn onder de vloer">IFC alleen trap</button>
         <button type="button" id="btn-ifc-frame" data-kind="frame" title="Systeemlijnen van de trap uit het rekenmodel, als IFC-analysemodel">IFC draadmodel trap</button>
+        <button type="button" id="btn-dxf-frame" data-kind="dxf" title="Systeemlijnen van de trap uit het rekenmodel als 3D-lijnen in DXF, in mm, een laag per onderdeel">DXF draadmodel trap</button>
         <p id="ifc-status" role="status"></p>
       </div>
       <p class="hint" id="hint">Slepen draait · scrollen of knijpen zoomt · rechtermuisknop verschuift</p>
@@ -1825,6 +1826,44 @@ function buildIfcFrame(fileName = 'wenteltrap-draadmodel.ifc') {
   return finish();
 }
 
+// Draadmodel van alleen de trap als DXF (R12, mm, Z omhoog): elke staaf uit het rekenmodel is een 3D-lijn,
+// met een laag per soort onderdeel; de steunpunten staan als punt op een eigen laag. Geschikt om in een
+// rekenpakket zoals AxisVM als staven in te lezen.
+function buildDxfFrame() {
+  const res = computeLoads(0);
+  if (!res) return null;
+  const { nodes, els, plates, supports } = res.frame;
+  const toW = v => [v[0], -v[2], v[1]];
+  const num = v => (Math.round(v * 100) / 100).toFixed(2);
+  const layerOf = el => el.rigid ? 'VERBINDING_STAR' : /^Trede/.test(el.name) ? 'TREDEN'
+    : el.name === 'Binnenboom' ? 'BINNENBOOM' : el.name === 'Buitenboom' ? 'BUITENBOOM' : 'KOKER';
+  const layers = [['BINNENBOOM', 5], ['BUITENBOOM', 4], ['TREDEN', 2], ['KOKER', 1], ['VERBINDING_STAR', 6],
+    ['STEUNPUNT_SCHARNIER', 3], ['STEUNPUNT_INGEKLEMD', 1]];
+  const out = [];
+  const g = (code, value) => out.push(String(code), String(value));
+  g(0, 'SECTION'); g(2, 'HEADER');
+  g(9, '$ACADVER'); g(1, 'AC1009');
+  g(9, '$INSUNITS'); g(70, 4);
+  g(0, 'ENDSEC');
+  g(0, 'SECTION'); g(2, 'TABLES');
+  g(0, 'TABLE'); g(2, 'LAYER'); g(70, layers.length);
+  for (const [name, color] of layers) { g(0, 'LAYER'); g(2, name); g(70, 0); g(62, color); g(6, 'CONTINUOUS'); }
+  g(0, 'ENDTAB'); g(0, 'ENDSEC');
+  g(0, 'SECTION'); g(2, 'ENTITIES');
+  for (const el of els) {
+    if (el.kind === 'kolom') continue;
+    const a = toW(nodes[el.i]), b = toW(nodes[el.j]);
+    g(0, 'LINE'); g(8, layerOf(el));
+    g(10, num(a[0])); g(20, num(a[1])); g(30, num(a[2]));
+    g(11, num(b[0])); g(21, num(b[1])); g(31, num(b[2]));
+  }
+  const point = (n, layer) => { const a = toW(nodes[n]); g(0, 'POINT'); g(8, layer); g(10, num(a[0])); g(20, num(a[1])); g(30, num(a[2])); };
+  supports.forEach(([, n]) => point(n, 'STEUNPUNT_SCHARNIER'));
+  plates.forEach(({ node }) => point(node, 'STEUNPUNT_INGEKLEMD'));
+  g(0, 'ENDSEC'); g(0, 'EOF');
+  return out.join('\r\n') + '\r\n';
+}
+
 // Zip met één onverpakt bestand. De opslagfunctie van de viewer kent de extensie .ifc niet, een zip wel.
 function zipStore(name, data) {
   const table = new Uint32Array(256).map((_, n) => { for (let k = 0; k < 8; k++) n = n & 1 ? 0xedb88320 ^ (n >>> 1) : n >>> 1; return n; });
@@ -1852,24 +1891,25 @@ async function exportIfc(kind) {
   const status = $('ifc-status');
   if (!renderer) return;
   update(); // het model moet overeenkomen met de ingevulde waarden
-  const name = `wenteltrap-R${Math.round(derive().rOut)}` + (kind === 'stair' ? '-trap' : kind === 'frame' ? '-draadmodel' : '');
-  const text = kind === 'frame' ? buildIfcFrame(name + '.ifc') : buildIfc(kind === 'stair', name + '.ifc');
+  const name = `wenteltrap-R${Math.round(derive().rOut)}` + (kind === 'stair' ? '-trap' : kind === 'frame' || kind === 'dxf' ? '-draadmodel' : '');
+  const ext = kind === 'dxf' ? '.dxf' : '.ifc';
+  const text = kind === 'dxf' ? buildDxfFrame() : kind === 'frame' ? buildIfcFrame(name + ext) : buildIfc(kind === 'stair', name + ext);
   if (!text) { status.textContent = 'Het draadmodel is er alleen voor de uitvoering met een binnenboom.'; return; }
   if (!downloads) {
     // Buiten claude.ai (bijvoorbeeld vanaf GitHub of lokaal) slaat de browser het bestand rechtstreeks op.
-    const url = URL.createObjectURL(new Blob([text], { type: 'application/x-step' }));
+    const url = URL.createObjectURL(new Blob([text], { type: ext === '.dxf' ? 'application/dxf' : 'application/x-step' }));
     const a = document.createElement('a');
-    a.href = url; a.download = name + '.ifc';
+    a.href = url; a.download = name + ext;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 10000);
-    status.textContent = `Opgeslagen als ${name}.ifc.`;
+    status.textContent = `Opgeslagen als ${name}${ext}.`;
     return;
   }
   try {
-    const zip = zipStore(name + '.ifc', new TextEncoder().encode(text));
+    const zip = zipStore(name + ext, new TextEncoder().encode(text));
     status.textContent = 'Bevestig het opslaan in het venster.';
     await downloads.save({ filename: name + '.zip', data: new Blob([zip]) });
-    status.textContent = `Opgeslagen. Pak ${name}.zip uit voor het IFC-bestand.`;
+    status.textContent = `Opgeslagen. Pak ${name}.zip uit voor het ${ext === '.dxf' ? 'DXF' : 'IFC'}-bestand.`;
   } catch (err) {
     const code = err && err.code;
     if (code === 'declined') status.textContent = '';
@@ -1914,7 +1954,7 @@ function start(saved) {
   });
 }
 
-window.wenteltrap = { ifc: buildIfc, ifcFrame: buildIfcFrame, zip: zipStore, frame: frameSolve, loads: computeLoads, bestHeavy };
+window.wenteltrap = { ifc: buildIfc, ifcFrame: buildIfcFrame, dxf: buildDxfFrame, zip: zipStore, frame: frameSolve, loads: computeLoads, bestHeavy };
 
 const hot = window.claude && window.claude.hot;
 if (hot && hot.snapshot) hot.snapshot(() => ({ v: STATE_V, P, view }));

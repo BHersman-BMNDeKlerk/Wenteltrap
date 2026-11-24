@@ -351,6 +351,8 @@ body {
         <button type="button" id="btn-ifc" data-kind="all" title="Trap met kolom, HEA160 en hoeklijn onder de vloer; zonder de vloer">IFC compleet</button>
         <button type="button" id="btn-ifc-stair" data-kind="stair" title="Alleen de trap, zonder het bestaande staal: kolom, HEA160 en hoeklijn onder de vloer">IFC alleen trap</button>
         <button type="button" id="btn-ifc-frame" data-kind="frame" title="Systeemlijnen van de trap uit het rekenmodel, als IFC-analysemodel">IFC draadmodel trap</button>
+        <button type="button" id="btn-dxf-3d" data-kind="dxf3d" title="3D-model van alleen de trap als DXF (3DFACE), in mm, een laag per onderdeel">DXF 3D trap</button>
+        <button type="button" id="btn-dxf-3d-all" data-kind="dxf3dall" title="3D-model met kolom, HEA160 en hoeklijn onder de vloer als DXF (3DFACE), in mm">DXF 3D compleet</button>
         <button type="button" id="btn-dxf-frame" data-kind="dxf" title="Systeemlijnen van de trap uit het rekenmodel als 3D-lijnen in DXF, in mm, een laag per onderdeel">DXF draadmodel trap</button>
         <p id="ifc-status" role="status"></p>
       </div>
@@ -1864,6 +1866,39 @@ function buildDxfFrame() {
   return out.join('\r\n') + '\r\n';
 }
 
+// 3D-model als DXF (R12, mm, Z omhoog): elk driehoekig vlak van het model is een 3DFACE, met een laag per
+// soort onderdeel. Net als de IFC zonder de vloer; met stairOnly ook zonder kolom, HEA160 en hoeklijn eronder.
+function buildDxf3d(stairOnly) {
+  const out = [], layers = new Map();
+  const g = (code, value) => out.push(String(code), String(value));
+  const num = v => (Math.round(v * 100) / 100).toFixed(2);
+  const colorOf = { [mats.steel.uuid]: 8, [mats.wood.uuid]: 42, [mats.rubber.uuid]: 250 };
+  const faces = [];
+  const v = new THREE.Vector3();
+  for (const m of model.children) {
+    const p = m.userData.part;
+    if (!p || !(m.material.uuid in colorOf) || (stairOnly && !p.inStair)) continue;
+    const layer = p.name.replace(/\s+\d+$/, '').replace(/^Baluster (binnen|buiten).*/, 'Baluster $1')
+      .normalize('NFD').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '').toUpperCase();
+    if (!layers.has(layer)) layers.set(layer, colorOf[m.material.uuid]);
+    m.updateMatrix();
+    const pos = m.geometry.attributes.position, idx = m.geometry.index, n = idx ? idx.count : pos.count;
+    const pt = i => { v.fromBufferAttribute(pos, idx ? idx.getX(i) : i).applyMatrix4(m.matrix); return [v.x, -v.z, v.y]; };
+    for (let i = 0; i + 2 < n; i += 3) faces.push([layer, pt(i), pt(i + 1), pt(i + 2)]);
+  }
+  g(0, 'SECTION'); g(2, 'HEADER'); g(9, '$ACADVER'); g(1, 'AC1009'); g(9, '$INSUNITS'); g(70, 4); g(0, 'ENDSEC');
+  g(0, 'SECTION'); g(2, 'TABLES'); g(0, 'TABLE'); g(2, 'LAYER'); g(70, layers.size);
+  for (const [name, color] of layers) { g(0, 'LAYER'); g(2, name); g(70, 0); g(62, color); g(6, 'CONTINUOUS'); }
+  g(0, 'ENDTAB'); g(0, 'ENDSEC');
+  g(0, 'SECTION'); g(2, 'ENTITIES');
+  for (const [layer, a, b, c] of faces) {
+    g(0, '3DFACE'); g(8, layer);
+    [a, b, c, c].forEach((q, k) => { g(10 + k, num(q[0])); g(20 + k, num(q[1])); g(30 + k, num(q[2])); });
+  }
+  g(0, 'ENDSEC'); g(0, 'EOF');
+  return out.join('\r\n') + '\r\n';
+}
+
 // Zip met één onverpakt bestand. De opslagfunctie van de viewer kent de extensie .ifc niet, een zip wel.
 function zipStore(name, data) {
   const table = new Uint32Array(256).map((_, n) => { for (let k = 0; k < 8; k++) n = n & 1 ? 0xedb88320 ^ (n >>> 1) : n >>> 1; return n; });
@@ -1891,9 +1926,10 @@ async function exportIfc(kind) {
   const status = $('ifc-status');
   if (!renderer) return;
   update(); // het model moet overeenkomen met de ingevulde waarden
-  const name = `wenteltrap-R${Math.round(derive().rOut)}` + (kind === 'stair' ? '-trap' : kind === 'frame' || kind === 'dxf' ? '-draadmodel' : '');
-  const ext = kind === 'dxf' ? '.dxf' : '.ifc';
-  const text = kind === 'dxf' ? buildDxfFrame() : kind === 'frame' ? buildIfcFrame(name + ext) : buildIfc(kind === 'stair', name + ext);
+  const name = `wenteltrap-R${Math.round(derive().rOut)}` + (kind === 'stair' || kind === 'dxf3d' ? '-trap'
+    : kind === 'frame' || kind === 'dxf' ? '-draadmodel' : kind === 'dxf3dall' ? '-compleet' : '');
+  const ext = /^dxf/.test(kind) ? '.dxf' : '.ifc';
+  const text = kind === 'dxf' ? buildDxfFrame() : kind === 'dxf3d' ? buildDxf3d(true) : kind === 'dxf3dall' ? buildDxf3d(false) : kind === 'frame' ? buildIfcFrame(name + ext) : buildIfc(kind === 'stair', name + ext);
   if (!text) { status.textContent = 'Het draadmodel is er alleen voor de uitvoering met een binnenboom.'; return; }
   if (!downloads) {
     // Buiten claude.ai (bijvoorbeeld vanaf GitHub of lokaal) slaat de browser het bestand rechtstreeks op.
@@ -1954,7 +1990,7 @@ function start(saved) {
   });
 }
 
-window.wenteltrap = { ifc: buildIfc, ifcFrame: buildIfcFrame, dxf: buildDxfFrame, zip: zipStore, frame: frameSolve, loads: computeLoads, bestHeavy };
+window.wenteltrap = { ifc: buildIfc, ifcFrame: buildIfcFrame, dxf: buildDxfFrame, dxf3d: buildDxf3d, zip: zipStore, frame: frameSolve, loads: computeLoads, bestHeavy };
 
 const hot = window.claude && window.claude.hot;
 if (hot && hot.snapshot) hot.snapshot(() => ({ v: STATE_V, P, view }));
